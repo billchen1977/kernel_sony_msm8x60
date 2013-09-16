@@ -26,7 +26,7 @@
 #include <linux/kthread.h>
 #include <linux/wait.h>
 #include <linux/dma-mapping.h>
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 
 #include <linux/delay.h>
 
@@ -871,7 +871,7 @@ static int audpcm_in_open(struct inode *inode, struct file *file)
 		goto output_buff_get_flags_error;
 	}
 
-	audio->data = ion_map_kernel(client, handle, ionflag);
+	audio->data = ion_map_kernel(client, handle);
 	if (IS_ERR(audio->data)) {
 		MM_ERR("could not map read buffers,freeing instance 0x%08x\n",
 				(int)audio);

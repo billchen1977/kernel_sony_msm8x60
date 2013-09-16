@@ -21,7 +21,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_irq.h>
 #ifdef CONFIG_ION_MSM
-#include <linux/ion.h>
+#include <linux/msm_ion.h>
 #endif
 #include <linux/memory.h>
 #ifdef CONFIG_ANDROID_PMEM
