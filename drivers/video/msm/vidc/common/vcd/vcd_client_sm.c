@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2013, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -213,11 +213,11 @@ static u32 vcd_decode_frame_cmn
 	return vcd_handle_input_frame(cctxt, input_frame);
 }
 
-static u32 vcd_pause_in_run(struct vcd_clnt_ctxt *cctxt)
+static u32 vcd_pause_cmn(struct vcd_clnt_ctxt *cctxt)
 {
 	u32 rc = VCD_S_SUCCESS;
 
-	VCD_MSG_LOW("vcd_pause_in_run:");
+	VCD_MSG_LOW("vcd_pause_cmn:");
 
 	if (cctxt->sched_clnt_hdl) {
 		rc = vcd_sched_suspend_resume_clnt(cctxt, false);
@@ -1622,6 +1622,7 @@ void vcd_do_client_state_transition(struct vcd_clnt_ctxt *cctxt,
 	if (!cctxt || to_state >= VCD_CLIENT_STATE_MAX) {
 		VCD_MSG_ERROR("Bad parameters. cctxt=%p, to_state=%d",
 			      cctxt, to_state);
+		return;
 	}
 
 	state_ctxt = &cctxt->clnt_state;
@@ -1709,7 +1710,7 @@ static const struct vcd_clnt_state_table vcd_clnt_table_run = {
 	 vcd_encode_frame_cmn,
 	 vcd_decode_start_in_run,
 	 vcd_decode_frame_cmn,
-	 vcd_pause_in_run,
+	 vcd_pause_cmn,
 	 NULL,
 	 vcd_flush_cmn,
 	 vcd_stop_in_run,
@@ -1744,7 +1745,7 @@ static const struct vcd_clnt_state_table vcd_clnt_table_flushing = {
 	 vcd_get_buffer_requirements_cmn,
 	 NULL,
 	 NULL,
-	 NULL,
+	 vcd_free_buffer_cmn,
 	 vcd_fill_output_buffer_cmn,
 	 vcd_clnt_cb_in_flushing,
 	 },
@@ -1784,7 +1785,7 @@ static const struct vcd_clnt_state_table vcd_clnt_table_eos = {
 	 vcd_encode_frame_cmn,
 	 NULL,
 	 vcd_decode_frame_cmn,
-	 NULL,
+	 vcd_pause_cmn,
 	 NULL,
 	 vcd_flush_in_eos,
 	 vcd_stop_in_eos,

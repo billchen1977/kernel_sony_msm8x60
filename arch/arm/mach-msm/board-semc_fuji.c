@@ -2472,11 +2472,8 @@ unsigned char hdmi_is_primary;
 
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 #define MSM_ION_AUDIO_SIZE	MSM_PMEM_AUDIO_SIZE
-#define MSM_ION_HEAP_NUM	9
 #define MSM_HDMI_PRIM_ION_SF_SIZE MSM_HDMI_PRIM_PMEM_SF_SIZE
 static unsigned msm_ion_sf_size = MSM_ION_SF_SIZE;
-#else
-#define MSM_ION_HEAP_NUM	1
 #endif
 
 static unsigned fb_size;
@@ -4373,7 +4370,7 @@ struct ion_platform_heap msm8x60_heaps [] = {
 };
 
 static struct ion_platform_data ion_pdata = {
-	.nr = MSM_ION_HEAP_NUM,
+	.nr = ARRAY_SIZE(msm8x60_heaps),
 	.heaps = msm8x60_heaps,
 };
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -103,6 +103,7 @@
 #define VIDC_1080P_ERROR_SPS_PARSE_ERROR         129
 #define VIDC_1080P_ERROR_PPS_PARSE_ERROR         130
 #define VIDC_1080P_ERROR_SLICE_PARSE_ERROR       131
+#define VIDC_1080P_ERROR_NON_IDR_FRAME_TYPE      132
 #define VIDC_1080P_ERROR_SYNC_POINT_NOT_RECEIVED  171
 
 #define VIDC_1080P_WARN_COMMAND_FLUSHED                  145
@@ -277,6 +278,7 @@ enum vidc_1080p_decode_frame{
 	VIDC_1080P_DECODE_FRAMETYPE_P          = 2,
 	VIDC_1080P_DECODE_FRAMETYPE_B          = 3,
 	VIDC_1080P_DECODE_FRAMETYPE_OTHERS     = 4,
+	VIDC_1080P_DECODE_FRAMETYPE_IDR        = 5,
 	VIDC_1080P_DECODE_FRAMETYPE_32BIT      = 0x7FFFFFFF
 };
 enum vidc_1080P_decode_frame_correct_type {
@@ -311,6 +313,7 @@ enum vidc_1080p_decode_idc_format {
 #define VIDC_1080P_PROFILE_H264_MAIN         0x00000000
 #define VIDC_1080P_PROFILE_H264_HIGH         0x00000001
 #define VIDC_1080P_PROFILE_H264_BASELINE     0x00000002
+#define VIDC_1080P_PROFILE_H264_CONSTRAINED_BASELINE     0x00000003
 
 
 enum vidc_1080p_decode{
@@ -583,4 +586,6 @@ void vidc_1080p_get_intermedia_stage_debug_counter(
 	u32 *intermediate_stage_counter);
 void vidc_1080p_get_exception_status(u32 *exception_status);
 void vidc_1080p_frame_start_realloc(u32 instance_id);
+void vidc_1080p_set_enc_NV21(u32 enc_nv21);
+
 #endif
