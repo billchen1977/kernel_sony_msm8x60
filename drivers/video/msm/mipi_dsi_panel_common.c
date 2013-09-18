@@ -22,10 +22,6 @@ void mipi_dsi_set_default_panel(struct mipi_dsi_data *dsi_data)
 	MSM_FB_INFO("default panel: %s\n", dsi_data->panel->name);
 	dsi_data->panel_data.panel_info =
 		*dsi_data->panel->pctrl->get_panel_info();
-	dsi_data->panel_data.panel_info.width =
-		dsi_data->panel->width;
-	dsi_data->panel_data.panel_info.height =
-		dsi_data->panel->height;
 }
 
 static int panel_id_reg_check(struct msm_fb_data_type *mfd, struct dsi_buf *ptx,
@@ -99,10 +95,6 @@ struct msm_panel_info *mipi_dsi_detect_panel(
 
 	dsi_data->panel_data.panel_info =
 		*dsi_data->panel->pctrl->get_panel_info();
-	dsi_data->panel_data.panel_info.width =
-		dsi_data->panel->width;
-	dsi_data->panel_data.panel_info.height =
-		dsi_data->panel->height;
 	dsi_data->panel_data.panel_info.mipi.dsi_pclk_rate =
 		mfd->panel_info.mipi.dsi_pclk_rate;
 	mipi_dsi_op_mode_config

@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2010, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -453,7 +453,7 @@ static ssize_t samsung_wta_cmd(struct device *dev,
 	return ret;
 }
 
-static DEVICE_ATTR(cmd, S_IRUGO | S_IWUGO, samsung_rda_cmd, samsung_wta_cmd);
+static DEVICE_ATTR(cmd, S_IRUGO | S_IWUSR, samsung_rda_cmd, samsung_wta_cmd);
 static struct attribute *fs_attrs[] = {
 	&dev_attr_cmd.attr,
 	NULL,
