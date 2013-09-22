@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,8 +15,6 @@
 
 #define CTX_SHIFT  12
 #define CTX_OFFSET 0x8000
-
-#define MAX_NUM_SMR 128
 
 #define GET_GLOBAL_REG(reg, base) (readl_relaxed((base) + (reg)))
 #define GET_CTX_REG(reg, base, ctx) \
