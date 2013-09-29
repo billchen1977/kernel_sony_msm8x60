@@ -1772,7 +1772,7 @@ static void a2xx_cp_intrcallback(struct kgsl_device *device)
 		return;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(kgsl_cp_error_irqs); i++) {
+	for (i = 0; i < ARRAY_SIZE(kgsl_cp_error_irqs); i++) {
 		if (status & kgsl_cp_error_irqs[i].mask) {
 			KGSL_CMD_CRIT(rb->device, "%s\n",
 				 kgsl_cp_error_irqs[i].message);
@@ -1881,14 +1881,14 @@ static void a2xx_irq_control(struct adreno_device *adreno_dev, int state)
 static unsigned int a2xx_irq_pending(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
-	unsigned int rbbm, cp, mh;
+	unsigned int status;
 
-	adreno_regread(device, REG_RBBM_INT_CNTL, &rbbm);
-	adreno_regread(device, REG_CP_INT_CNTL, &cp);
-	adreno_regread(device, MH_INTERRUPT_MASK, &mh);
+	adreno_regread(device, REG_MASTER_INT_SIGNAL, &status);
 
-	return ((rbbm & RBBM_INT_MASK) || (cp & CP_INT_MASK) ||
-		(mh & kgsl_mmu_get_int_mask())) ? 1 : 0;
+    return (status &  
+		    (MASTER_INT_SIGNAL__MH_INT_STAT |  
+		     MASTER_INT_SIGNAL__CP_INT_STAT |  
+		     MASTER_INT_SIGNAL__RBBM_INT_STAT)) ? 1 : 0;  
 }
 
 static int a2xx_rb_init(struct adreno_device *adreno_dev,
@@ -2045,8 +2045,8 @@ static void a2xx_start(struct adreno_device *adreno_dev)
 			0x18000000);
 	}
 
-	if (adreno_is_a20x(adreno_dev))
-		/* For A20X based targets increase number of clocks
+	if (adreno_is_a203(adreno_dev))
+		/* For A203 based targets increase number of clocks
 		 * that RBBM will wait before de-asserting Register
 		 * Clock Active signal */
 		adreno_regwrite(device, REG_RBBM_CNTL, 0x0000FFFF);
