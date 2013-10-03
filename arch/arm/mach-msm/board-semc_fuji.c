@@ -3848,12 +3848,20 @@ struct platform_device msm_device_sdio_al = {
 
 #endif /* CONFIG_MSM_SDIO_AL */
 
+#define WL_RST_N (130)
+
+static int fuji_wifi_set_power(int val)
+{
+    gpio_set_value(WL_RST_N, val);
+    return 0;
+}
+
 static void *fuji_wifi_mem_prealloc(int section, unsigned long size)
 {
 	if (section == PREALLOC_WLAN_NUMBER_OF_SECTIONS)
 		return wlan_static_skb;
 	if (section < 0 || section > PREALLOC_WLAN_NUMBER_OF_SECTIONS)
-		return NULL;
+		return kmalloc(size, GFP_KERNEL);
 	if (wifi_mem_array[section].size < size)
 		return NULL;
 	return wifi_mem_array[section].mem_ptr;
@@ -3903,9 +3911,111 @@ int fuji_wifi_set_carddetect(int val)
 	return 0;
 }
 
+#define MAC_LEN 6
+#define MACADDR_BUF_LEN            64
+#define MACADDR_PATH "/data/etc/wifi/fw"
+
+static int fuji_wifi_aton(const char *orig, size_t len, unsigned char *eth)
+{
+	const char *bufp;
+	int i;
+
+	i = 0;
+	for(bufp = orig; bufp!=orig+len && *bufp; ++bufp) {
+		unsigned int val;
+		unsigned char c = *bufp++;
+
+		if (c >= '0' && c <= '9') val = c - '0';
+		else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
+		else if (c >= 'A' && c <= 'F') val = c - 'A' + 10;
+		else {
+			break;
+		}
+
+		val <<= 4;
+		c = *bufp++;
+		if (c >= '0' && c <= '9') val |= c - '0';
+		else if (c >= 'a' && c <= 'f') val |= c - 'a' + 10;
+		else if (c >= 'A' && c <= 'F') val |= c - 'A' + 10;
+		else {
+			break;
+		}
+
+		eth[i] = (unsigned char) (val & 0377);
+		if(++i == MAC_LEN) {
+			return 1;
+		}
+		if (*bufp != ':')
+			break;
+	}
+	return 0;
+}
+
+int fuji_wifi_get_mac_addr(unsigned char *buf)
+{
+	int ret = 0;
+	int length;
+	mm_segment_t oldfs;
+	struct file *filp;
+	struct inode *inode = NULL;
+	unsigned char macaddr_buf[MACADDR_BUF_LEN];
+
+	if (!buf)
+		return -EINVAL;
+
+	oldfs = get_fs();
+	set_fs(KERNEL_DS);
+
+	filp = filp_open(MACADDR_PATH, O_RDONLY, S_IRUSR);
+	if (IS_ERR(filp)) {
+		set_fs(oldfs);
+		return -1;
+	}
+	if (!filp->f_op) {
+		filp_close(filp, NULL);
+		set_fs(oldfs);
+		return -1;
+	}
+	inode = filp->f_path.dentry->d_inode;
+	if (!inode) {
+		filp_close(filp, NULL);
+		set_fs(oldfs);
+		return -1;
+	}
+
+	/* check file size */
+	length = i_size_read(inode->i_mapping->host);
+	if (length+1 > MACADDR_BUF_LEN) {
+		filp_close(filp, NULL);
+		set_fs(oldfs);
+		return -1;
+	}
+
+	/* read mac address */
+	if (filp->f_op->read(filp, macaddr_buf, length, &filp->f_pos) != length) {
+		filp_close(filp, NULL);
+		set_fs(oldfs);
+		return -1;
+	}
+	macaddr_buf[length] = '\0';
+
+	/* read mac address success */
+	filp_close(filp, NULL);
+	set_fs(oldfs);
+
+	/* convert mac address */
+	if (!fuji_wifi_aton(macaddr_buf, length, buf)) {
+		return -1;
+	}
+
+	return ret;
+}
+
 struct wifi_platform_data fuji_wifi_control = {
+    .set_power      = fuji_wifi_set_power,
 	.set_carddetect = fuji_wifi_set_carddetect,
 	.mem_prealloc	= fuji_wifi_mem_prealloc,
+	.get_mac_addr   = fuji_wifi_get_mac_addr,
 };
 
 static int __init fuji_wifi_init(void)
@@ -3916,7 +4026,7 @@ static int __init fuji_wifi_init(void)
 late_initcall(fuji_wifi_init);
 
 static struct platform_device fuji_wifi = {
-	.name   = "bcm4330_wlan",
+	.name   = "bcmdhd_wlan",
 	.id	    = -1,
 	.dev    = {
 		.platform_data = &fuji_wifi_control,
@@ -4324,6 +4434,7 @@ struct ion_platform_heap msm8x60_heaps [] = {
 			.memory_type = ION_SMI_TYPE,
 			.extra_data = (void *) &cp_mfc_ion_pdata,
 		},
+#ifndef CONFIG_MSM_IOMMU
 		{
 			.id	= ION_SF_HEAP_ID,
 			.type	= ION_HEAP_TYPE_CARVEOUT,
@@ -4331,6 +4442,12 @@ struct ion_platform_heap msm8x60_heaps [] = {
 			.size	= MSM_ION_SF_SIZE,
 			.memory_type = ION_EBI_TYPE,
 			.extra_data = (void *)&co_ion_pdata,
+		},
+#endif
+		{
+			.id	= ION_IOMMU_HEAP_ID,
+			.type	= ION_HEAP_TYPE_IOMMU,
+			.name	= ION_IOMMU_HEAP_NAME,
 		},
 		{
 			.id	= ION_CAMERA_HEAP_ID,
