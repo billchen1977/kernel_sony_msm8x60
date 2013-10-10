@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -33,12 +33,25 @@ static int msm_iommu_parse_dt(struct platform_device *pdev,
 				struct msm_iommu_drvdata *drvdata)
 {
 	struct device_node *child;
-	int ret;
+	int ret = 0;
+	u32 nsmr;
 
 	ret = device_move(&pdev->dev, &msm_iommu_root_dev->dev, DPM_ORDER_NONE);
 	if (ret)
-		return ret;
+		goto fail;
 
+	ret = of_property_read_u32(pdev->dev.of_node, "qcom,iommu-smt-size",
+				   &nsmr);
+	if (ret)
+		goto fail;
+
+	if (nsmr > MAX_NUM_SMR) {
+		pr_err("Invalid SMT size: %d\n", nsmr);
+		ret = -EINVAL;
+		goto fail;
+	}
+
+	drvdata->nsmr = nsmr;
 	for_each_child_of_node(pdev->dev.of_node, child) {
 		drvdata->ncb++;
 		if (!of_platform_device_create(child, NULL, &pdev->dev))
@@ -46,7 +59,8 @@ static int msm_iommu_parse_dt(struct platform_device *pdev,
 	}
 
 	drvdata->name = dev_name(&pdev->dev);
-	return 0;
+fail:
+	return ret;
 }
 
 static atomic_t msm_iommu_next_id = ATOMIC_INIT(-1);
@@ -55,7 +69,7 @@ static int __devinit msm_iommu_probe(struct platform_device *pdev)
 {
 	struct msm_iommu_drvdata *drvdata;
 	struct resource *r;
-	int ret;
+	int ret, needs_alt_core_clk;
 
 	if (msm_iommu_root_dev == pdev)
 		return 0;
@@ -79,55 +93,42 @@ static int __devinit msm_iommu_probe(struct platform_device *pdev)
 	if (IS_ERR(drvdata->gdsc))
 		return -EINVAL;
 
-	drvdata->pclk = clk_get(&pdev->dev, "iface_clk");
+	drvdata->pclk = devm_clk_get(&pdev->dev, "iface_clk");
 	if (IS_ERR(drvdata->pclk))
 		return PTR_ERR(drvdata->pclk);
 
-	ret = clk_prepare_enable(drvdata->pclk);
-	if (ret)
-		goto fail_enable;
+	drvdata->clk = devm_clk_get(&pdev->dev, "core_clk");
+	if (IS_ERR(drvdata->clk))
+		return PTR_ERR(drvdata->clk);
 
-	drvdata->clk = clk_get(&pdev->dev, "core_clk");
-	if (!IS_ERR(drvdata->clk)) {
-		if (clk_get_rate(drvdata->clk) == 0) {
-			ret = clk_round_rate(drvdata->clk, 1);
-			clk_set_rate(drvdata->clk, ret);
-		}
+	needs_alt_core_clk = of_property_read_bool(pdev->dev.of_node,
+						   "qcom,needs-alt-core-clk");
+	if (needs_alt_core_clk) {
+		drvdata->aclk = devm_clk_get(&pdev->dev, "alt_core_clk");
+		if (IS_ERR(drvdata->aclk))
+			return PTR_ERR(drvdata->aclk);
+	}
 
-		ret = clk_prepare_enable(drvdata->clk);
-		if (ret) {
-			clk_put(drvdata->clk);
-			goto fail_pclk;
-		}
-	} else
-		drvdata->clk = NULL;
+	if (clk_get_rate(drvdata->clk) == 0) {
+		ret = clk_round_rate(drvdata->clk, 1);
+		clk_set_rate(drvdata->clk, ret);
+	}
+
+	if (drvdata->aclk && clk_get_rate(drvdata->aclk) == 0) {
+		ret = clk_round_rate(drvdata->aclk, 1);
+		clk_set_rate(drvdata->aclk, ret);
+	}
 
 	ret = msm_iommu_parse_dt(pdev, drvdata);
 	if (ret)
-		goto fail_clk;
+		return ret;
 
 	pr_info("device %s mapped at %p, with %d ctx banks\n",
 		drvdata->name, drvdata->base, drvdata->ncb);
 
 	platform_set_drvdata(pdev, drvdata);
 
-	if (drvdata->clk)
-		clk_disable_unprepare(drvdata->clk);
-
-	clk_disable_unprepare(drvdata->pclk);
-
 	return 0;
-
-fail_clk:
-	if (drvdata->clk) {
-		clk_disable_unprepare(drvdata->clk);
-		clk_put(drvdata->clk);
-	}
-fail_pclk:
-	clk_disable_unprepare(drvdata->pclk);
-fail_enable:
-	clk_put(drvdata->pclk);
-	return ret;
 }
 
 static int __devexit msm_iommu_remove(struct platform_device *pdev)
@@ -149,6 +150,7 @@ static int msm_iommu_ctx_parse_dt(struct platform_device *pdev,
 {
 	struct resource *r, rp;
 	int irq, ret;
+	u32 nsid;
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq > 0) {
@@ -177,9 +179,22 @@ static int msm_iommu_ctx_parse_dt(struct platform_device *pdev,
 	 */
 	ctx_drvdata->num = ((r->start - rp.start) >> CTX_SHIFT) - 8;
 
-	if (of_property_read_string(pdev->dev.of_node, "qcom,iommu-ctx-name",
+	if (of_property_read_string(pdev->dev.of_node, "label",
 					&ctx_drvdata->name))
 		ctx_drvdata->name = dev_name(&pdev->dev);
+
+	if (!of_get_property(pdev->dev.of_node, "qcom,iommu-ctx-sids", &nsid))
+		return -EINVAL;
+
+	if (nsid >= sizeof(ctx_drvdata->sids))
+		return -EINVAL;
+
+	if (of_property_read_u32_array(pdev->dev.of_node, "qcom,iommu-ctx-sids",
+				       ctx_drvdata->sids,
+				       nsid / sizeof(*ctx_drvdata->sids))) {
+		return -EINVAL;
+	}
+	ctx_drvdata->nsid = nsid;
 
 	return 0;
 }
@@ -204,7 +219,7 @@ static int __devinit msm_iommu_ctx_probe(struct platform_device *pdev)
 	ret = msm_iommu_ctx_parse_dt(pdev, ctx_drvdata);
 	if (!ret)
 		dev_info(&pdev->dev, "context %s using bank %d\n",
-				dev_name(&pdev->dev), ctx_drvdata->num);
+			 ctx_drvdata->name, ctx_drvdata->num);
 
 	return ret;
 }

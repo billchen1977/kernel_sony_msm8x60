@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -234,6 +234,7 @@ static enum msm_cpu cpu_of_id[] = {
 	[117] = MSM_CPU_8930,
 	[118] = MSM_CPU_8930,
 	[119] = MSM_CPU_8930,
+	[179] = MSM_CPU_8930,
 
 	/* 8627 IDs */
 	[120] = MSM_CPU_8627,
@@ -255,7 +256,6 @@ static enum msm_cpu cpu_of_id[] = {
 	[127] = MSM_CPU_8625,
 	[128] = MSM_CPU_8625,
 	[129] = MSM_CPU_8625,
-	[137] = MSM_CPU_8625,
 
 	/* 8064 MPQ ID */
 	[130] = MSM_CPU_8064,
@@ -279,6 +279,27 @@ static enum msm_cpu cpu_of_id[] = {
 	[142] = MSM_CPU_8930AA,
 	[143] = MSM_CPU_8930AA,
 	[144] = MSM_CPU_8930AA,
+	[160] = MSM_CPU_8930AA,
+	[180] = MSM_CPU_8930AA,
+
+	/* 8226 IDs */
+	[145] = MSM_CPU_8226,
+
+	/* 8092 IDs */
+	[146] = MSM_CPU_8092,
+
+	/* 8064AB IDs */
+	[153] = MSM_CPU_8064AB,
+
+	/* 8930AB IDs */
+	[154] = MSM_CPU_8930AB,
+	[155] = MSM_CPU_8930AB,
+	[156] = MSM_CPU_8930AB,
+	[157] = MSM_CPU_8930AB,
+	[181] = MSM_CPU_8930AB,
+
+	/* 8064AA IDs */
+	[172] = MSM_CPU_8064AA,
 
 	/* Uninitialized IDs are not known to run Linux.
 	   MSM_CPU_UNKNOWN is set to 0 to ensure these IDs are
@@ -701,11 +722,8 @@ arch_initcall(socinfo_init_sysdev);
 
 static void * __init setup_dummy_socinfo(void)
 {
-	if (machine_is_msm8960_rumi3() || machine_is_msm8960_sim() ||
-	    machine_is_msm8960_cdp())
+	if (machine_is_msm8960_cdp())
 		dummy_socinfo.id = 87;
-	else if (machine_is_apq8064_rumi3() || machine_is_apq8064_sim())
-		dummy_socinfo.id = 109;
 	else if (machine_is_msm9615_mtp() || machine_is_msm9615_cdp())
 		dummy_socinfo.id = 104;
 	else if (early_machine_is_msm8974()) {
@@ -715,6 +733,10 @@ static void * __init setup_dummy_socinfo(void)
 	} else if (early_machine_is_msm9625()) {
 		dummy_socinfo.id = 134;
 		strlcpy(dummy_socinfo.build_id, "msm9625 - ",
+			sizeof(dummy_socinfo.build_id));
+	} else if (early_machine_is_msm8226()) {
+		dummy_socinfo.id = 145;
+		strlcpy(dummy_socinfo.build_id, "msm8226 - ",
 			sizeof(dummy_socinfo.build_id));
 	} else if (machine_is_msm8625_rumi3())
 		dummy_socinfo.id = 127;
@@ -848,9 +870,7 @@ const int get_core_count(void)
 	if (!(read_cpuid_mpidr() & BIT(31)))
 		return 1;
 
-	if (read_cpuid_mpidr() & BIT(30) &&
-		!machine_is_msm8960_sim() &&
-		!machine_is_apq8064_sim())
+	if (read_cpuid_mpidr() & BIT(30))
 		return 1;
 
 	/* 1 + the PART[1:0] field of MIDR */
@@ -859,9 +879,6 @@ const int get_core_count(void)
 
 const int read_msm_cpu_type(void)
 {
-	if (machine_is_msm8960_sim() || machine_is_msm8960_rumi3())
-		return MSM_CPU_8960;
-
 	if (socinfo_get_msm_cpu() != MSM_CPU_UNKNOWN)
 		return socinfo_get_msm_cpu();
 
@@ -884,9 +901,18 @@ const int read_msm_cpu_type(void)
 	case 0x510F06F0:
 		return MSM_CPU_8064;
 
+	case 0x511F06F1:
+	case 0x512F06F0:
+		return MSM_CPU_8974;
+
 	default:
 		return MSM_CPU_UNKNOWN;
 	};
+}
+
+const int cpu_is_krait(void)
+{
+	return ((read_cpuid_id() & 0xFF00FC00) == 0x51000400);
 }
 
 const int cpu_is_krait_v1(void)
@@ -895,6 +921,39 @@ const int cpu_is_krait_v1(void)
 	case 0x510F04D0:
 	case 0x510F04D1:
 	case 0x510F04D2:
+		return 1;
+
+	default:
+		return 0;
+	};
+}
+
+const int cpu_is_krait_v2(void)
+{
+	switch (read_cpuid_id()) {
+	case 0x511F04D0:
+	case 0x511F04D1:
+	case 0x511F04D2:
+	case 0x511F04D3:
+	case 0x511F04D4:
+
+	case 0x510F06F0:
+	case 0x510F06F1:
+	case 0x510F06F2:
+		return 1;
+
+	default:
+		return 0;
+	};
+}
+
+const int cpu_is_krait_v3(void)
+{
+	switch (read_cpuid_id()) {
+	case 0x512F04D0:
+	case 0x511F06F0:
+	case 0x511F06F1:
+	case 0x510F05D0:
 		return 1;
 
 	default:

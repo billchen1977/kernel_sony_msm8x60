@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -51,10 +51,16 @@ static int __enable_clocks(struct msm_iommu_drvdata *drvdata)
 	if (ret)
 		goto fail;
 
-	if (drvdata->clk) {
-		ret = clk_prepare_enable(drvdata->clk);
-		if (ret)
+	ret = clk_prepare_enable(drvdata->clk);
+	if (ret)
+		clk_disable_unprepare(drvdata->pclk);
+
+	if (drvdata->aclk) {
+		ret = clk_prepare_enable(drvdata->aclk);
+		if (ret) {
+			clk_disable_unprepare(drvdata->clk);
 			clk_disable_unprepare(drvdata->pclk);
+		}
 	}
 fail:
 	return ret;
@@ -62,9 +68,21 @@ fail:
 
 static void __disable_clocks(struct msm_iommu_drvdata *drvdata)
 {
-	if (drvdata->clk)
-		clk_disable_unprepare(drvdata->clk);
+	if (drvdata->aclk)
+		clk_disable_unprepare(drvdata->aclk);
+	clk_disable_unprepare(drvdata->clk);
 	clk_disable_unprepare(drvdata->pclk);
+}
+
+static void __sync_tlb(void __iomem *base, int ctx)
+{
+	SET_TLBSYNC(base, ctx, 0);
+
+	/* No barrier needed due to register proximity */
+	while (GET_CB_TLBSTATUS_SACTIVE(base, ctx))
+		cpu_relax();
+
+	/* No barrier needed due to read dependency */
 }
 
 static int __flush_iotlb_va(struct iommu_domain *domain, unsigned int va)
@@ -92,6 +110,7 @@ static int __flush_iotlb_va(struct iommu_domain *domain, unsigned int va)
 		SET_TLBIVA(iommu_drvdata->base, ctx_drvdata->num,
 			   asid | (va & CB_TLBIVA_VA));
 		mb();
+		__sync_tlb(iommu_drvdata->base, ctx_drvdata->num);
 		__disable_clocks(iommu_drvdata);
 	}
 fail:
@@ -121,6 +140,7 @@ static int __flush_iotlb(struct iommu_domain *domain)
 
 		SET_TLBIASID(iommu_drvdata->base, ctx_drvdata->num, asid);
 		mb();
+		__sync_tlb(iommu_drvdata->base, ctx_drvdata->num);
 		__disable_clocks(iommu_drvdata);
 	}
 
@@ -128,7 +148,7 @@ fail:
 	return ret;
 }
 
-static void __reset_iommu(void __iomem *base)
+static void __reset_iommu(void __iomem *base, int smt_size)
 {
 	int i;
 
@@ -143,15 +163,15 @@ static void __reset_iommu(void __iomem *base)
 	SET_SCR1(base, 0);
 	SET_SSDR_N(base, 0, 0);
 
-	for (i = 0; i < MAX_NUM_SMR; i++)
+	for (i = 0; i < smt_size; i++)
 		SET_SMR_VALID(base, i, 0);
 
 	mb();
 }
 
-static void __program_iommu(void __iomem *base)
+static void __program_iommu(void __iomem *base, int smt_size)
 {
-	__reset_iommu(base);
+	__reset_iommu(base, smt_size);
 
 	SET_CR0_SMCFCFG(base, 1);
 	SET_CR0_USFCFG(base, 1);
@@ -182,7 +202,7 @@ static void __reset_context(void __iomem *base, int ctx)
 
 static void __program_context(void __iomem *base, int ctx, int ncb,
 				phys_addr_t pgtable, int redirect,
-				u32 *sids, int len)
+				u32 *sids, int len, int smt_size)
 {
 	unsigned int prrr, nmrr;
 	unsigned int pn;
@@ -227,10 +247,10 @@ static void __program_context(void __iomem *base, int ctx, int ncb,
 
 	/* Program the M2V tables for this context */
 	for (i = 0; i < len / sizeof(*sids); i++) {
-		for (; num < MAX_NUM_SMR; num++)
+		for (; num < smt_size; num++)
 			if (GET_SMR_VALID(base, num) == 0)
 				break;
-		BUG_ON(num >= MAX_NUM_SMR);
+		BUG_ON(num >= smt_size);
 
 		SET_SMR_VALID(base, num, 1);
 		SET_SMR_MASK(base, num, 0);
@@ -240,14 +260,14 @@ static void __program_context(void __iomem *base, int ctx, int ncb,
 		SET_S2CR_N(base, num, 0);
 		SET_S2CR_CBNDX(base, num, ctx);
 		/* Set security bit override to be Non-secure */
-		SET_S2CR_NSCFG(base, sids[i], 3);
-
-		SET_CBAR_N(base, ctx, 0);
-		/* Stage 1 Context with Stage 2 bypass */
-		SET_CBAR_TYPE(base, ctx, 1);
-		/* Route page faults to the non-secure interrupt */
-		SET_CBAR_IRPTNDX(base, ctx, 1);
+		SET_S2CR_NSCFG(base, num, 3);
 	}
+
+	SET_CBAR_N(base, ctx, 0);
+	/* Stage 1 Context with Stage 2 bypass */
+	SET_CBAR_TYPE(base, ctx, 1);
+	/* Route page faults to the non-secure interrupt */
+	SET_CBAR_IRPTNDX(base, ctx, 1);
 
        /* Find if this page table is used elsewhere, and re-use ASID */
 	found = 0;
@@ -346,8 +366,7 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	struct msm_iommu_drvdata *iommu_drvdata;
 	struct msm_iommu_ctx_drvdata *ctx_drvdata;
 	struct msm_iommu_ctx_drvdata *tmp_drvdata;
-	u32 sids[MAX_NUM_SMR];
-	int len = 0, ret;
+	int ret;
 
 	mutex_lock(&msm_iommu_lock);
 
@@ -375,14 +394,6 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 			goto fail;
 		}
 
-	of_get_property(dev->of_node, "qcom,iommu-ctx-sids", &len);
-	BUG_ON(len >= sizeof(sids));
-	if (of_property_read_u32_array(dev->of_node, "qcom,iommu-ctx-sids",
-					sids, len / sizeof(*sids))) {
-		ret = -EINVAL;
-		goto fail;
-	}
-
 	ret = regulator_enable(iommu_drvdata->gdsc);
 	if (ret)
 		goto fail;
@@ -394,11 +405,12 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	}
 
 	if (!msm_iommu_ctx_attached(dev->parent))
-		__program_iommu(iommu_drvdata->base);
+		__program_iommu(iommu_drvdata->base, iommu_drvdata->nsmr);
 
 	__program_context(iommu_drvdata->base, ctx_drvdata->num,
 		iommu_drvdata->ncb, __pa(priv->pt.fl_table),
-		priv->pt.redirect, sids, len);
+		priv->pt.redirect, ctx_drvdata->sids, ctx_drvdata->nsid,
+		iommu_drvdata->nsmr);
 	__disable_clocks(iommu_drvdata);
 
 	list_add(&(ctx_drvdata->attached_elm), &priv->list_attached);
