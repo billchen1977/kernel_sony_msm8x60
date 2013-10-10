@@ -2486,18 +2486,26 @@ void mdp_hw_version(void)
 
 #ifndef MDP_BUS_VECTOR_ENTRY
 #define MDP_BUS_VECTOR_ENTRY(ab_val, ib_val)		\
-	{						\
-		.src = MSM_BUS_MASTER_MDP_PORT0,	\
-		.dst = MSM_BUS_SLAVE_EBI_CH0,		\
-		.ab  = (ab_val),			\
-		.ib  = (ib_val),			\
+	{                       \
+	    {						\
+	    	.src = MSM_BUS_MASTER_MDP_PORT0,	\
+	    	.dst = MSM_BUS_SLAVE_SMI,		    \
+	    	.ab  = (ab_val),			\
+	    	.ib  = (ib_val),			\
+	    },                      \
+	    {						\
+	    	.src = MSM_BUS_MASTER_MDP_PORT0,	\
+	    	.dst = MSM_BUS_SLAVE_EBI_CH0,		\
+	    	.ab  = (ab_val),			\
+	    	.ib  = (ib_val),			\
+	    }                       \
 	}
 #endif
 /*
  *    Entry 0 hold 0 request
  *    Entry 1 and 2 do ping pong request
  */
-static struct msm_bus_vectors mdp_bus_vectors[] = {
+static struct msm_bus_vectors mdp_bus_vectors[][2] = {
 	MDP_BUS_VECTOR_ENTRY(0, 0),
 	MDP_BUS_VECTOR_ENTRY( 128000000,  160000000),
 	MDP_BUS_VECTOR_ENTRY( 128000000,  160000000),
@@ -2515,8 +2523,8 @@ static int mdp_bus_scale_register(void)
 	struct msm_bus_scale_pdata *bus_pdata = &mdp_bus_scale_table;
 	int i;
 	for (i = 0; i < bus_pdata->num_usecases; i++) {
-		mdp_bus_usecases[i].num_paths = 1;
-		mdp_bus_usecases[i].vectors = &mdp_bus_vectors[i];
+		mdp_bus_usecases[i].num_paths = 2;
+		mdp_bus_usecases[i].vectors = &mdp_bus_vectors[i][0];
 	}
 
 	if (!mdp_bus_scale_handle) {
@@ -2546,9 +2554,11 @@ int mdp_bus_scale_update_request(u64 ab, u64 ib)
 	bus_index++;
 	bus_index = (bus_index > 2) ? 1 : bus_index;
 
-	mdp_bus_usecases[bus_index].vectors->ab = min(ab, mdp_max_bw);
+	mdp_bus_usecases[bus_index].vectors[0].ab = min(ab, mdp_max_bw);
+	mdp_bus_usecases[bus_index].vectors[1].ab = min(ab, mdp_max_bw);
 	ib = max(ib, ab);
-	mdp_bus_usecases[bus_index].vectors->ib = min(ib, mdp_max_bw);
+	mdp_bus_usecases[bus_index].vectors[0].ib = min(ib, mdp_max_bw);
+	mdp_bus_usecases[bus_index].vectors[1].ib = min(ib, mdp_max_bw);
 
 	pr_debug("%s: handle=%d index=%d ab=%u ib=%u\n", __func__,
 		 (u32)mdp_bus_scale_handle, bus_index,
