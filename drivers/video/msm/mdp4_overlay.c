@@ -2817,29 +2817,6 @@ static int mdp4_calc_req_mdp_clk(struct msm_fb_data_type *mfd,
 	return (u32)rst;
 }
 
-static int mdp4_calc_req_blt(struct msm_fb_data_type *mfd,
-			     struct mdp_overlay *req)
-{
-	int ret = 0;
-
-	if (!req) {
-		pr_err("%s: req is null!\n", __func__);
-		return ret;
-	}
-
-	if (!mfd) {
-		pr_err("%s: mfd is null!\n", __func__);
-		return ret;
-	}
-
-	if (mdp4_calc_req_mdp_clk
-		(mfd, req->src_rect.h, req->dst_rect.h,
-		 req->src_rect.w, req->dst_rect.w) > mdp_max_clk)
-		ret = -EINVAL;
-
-	return ret;
-}
-
 static int mdp4_calc_pipe_mdp_clk(struct msm_fb_data_type *mfd,
 				  struct mdp4_overlay_pipe *pipe)
 {
@@ -3339,14 +3316,6 @@ int mdp4_overlay_set(struct fb_info *info, struct mdp_overlay *req)
 	}
 
 	mixer = mfd->panel_info.pdest;	/* DISPLAY_1 or DISPLAY_2 */
-
-	ret = mdp4_calc_req_blt(mfd, req);
-
-	if (ret < 0) {
-		mutex_unlock(&mfd->dma->ov_mutex);
-		pr_err("%s: blt mode is required! ret=%d\n", __func__, ret);
-		return ret;
-	}
 
 	ret = mdp4_overlay_req2pipe(req, mixer, &pipe, mfd);
 
