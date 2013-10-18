@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License version 2 and
@@ -14,7 +14,6 @@
 #include <linux/time.h>
 #include <linux/list.h>
 #include <media/videobuf2-core.h>
-#include <linux/slab.h>
 #include "enc-subdev.h"
 #include "vsg-subdev.h"
 #include "wfd-util.h"
