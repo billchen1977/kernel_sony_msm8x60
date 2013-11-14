@@ -257,6 +257,8 @@ int mdp4_dsi_video_pipe_commit(int cndx, int wait)
 	pipe = vctrl->base_pipe;
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
 	if (pipe->ov_blt_addr) {
+	    if (mdp_rev <= MDP_REV_41)
+		    mdp4_mixer_blend_cfg(MDP4_MIXER0);
 		mdp4_dsi_video_blt_ov_update(pipe);
 		pipe->ov_cnt++;
 		INIT_COMPLETION(vctrl->ov_comp);
@@ -1020,6 +1022,9 @@ void mdp4_dmap_done_dsi_video(int cndx)
 		}
 		vctrl->blt_change = 0;
 	}
+
+	if (mdp_rev <= MDP_REV_41)
+		mdp4_mixer_blend_cfg(MDP4_MIXER0);
 
 	complete_all(&vctrl->dmap_comp);
 	mdp4_overlay_dma_commit(cndx);
