@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -465,6 +465,9 @@ static int msm_dai_q6_cdc_hw_params(struct snd_pcm_hw_params *params,
 	dai_data->channels = params_channels(params);
 	switch (dai_data->channels) {
 	case 2:
+	case 4:
+	case 6:
+	case 8:
 		dai_data->port_config.mi2s.channel = MSM_AFE_STEREO;
 		break;
 	case 1:

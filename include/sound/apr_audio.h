@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -561,6 +561,7 @@ struct adm_copp_open_command {
 #define ADM_CMD_COPP_CLOSE                               0x00010305
 
 #define ADM_CMD_MULTI_CHANNEL_COPP_OPEN                  0x00010310
+#define ADM_CMD_MULTI_CHANNEL_COPP_OPEN_V3               0x00010333
 struct adm_multi_ch_copp_open_command {
 	struct apr_hdr hdr;
 	u16 flags;
@@ -573,7 +574,6 @@ struct adm_multi_ch_copp_open_command {
 	u32 rate;
 	u8 dev_channel_mapping[8];
 } __packed;
-
 #define ADM_CMD_MEMORY_MAP				0x00010C30
 struct adm_cmd_memory_map{
 	struct apr_hdr	hdr;
@@ -617,6 +617,14 @@ struct adm_cmd_memory_unmap_regions{
 #define VPM_TX_SM_ECNS_COPP_TOPOLOGY			0x00010F71
 #define VPM_TX_DM_FLUENCE_COPP_TOPOLOGY			0x00010F72
 #define VPM_TX_QMIC_FLUENCE_COPP_TOPOLOGY		0x00010F75
+
+#define LOWLATENCY_POPP_TOPOLOGY			0x00010C68
+#define LOWLATENCY_COPP_TOPOLOGY			0x00010312
+#define PCM_BITS_PER_SAMPLE				16
+
+#define ASM_OPEN_WRITE_PERF_MODE_BIT			(1<<28)
+#define ASM_OPEN_READ_PERF_MODE_BIT			(1<<29)
+#define ADM_MULTI_CH_COPP_OPEN_PERF_MODE_BIT		(1<<13)
 
 /* SRS TRUMEDIA GUIDS */
 /* topology */
@@ -741,6 +749,7 @@ struct adm_copp_open_respond {
 } __attribute__ ((packed));
 
 #define ADM_CMDRSP_MULTI_CHANNEL_COPP_OPEN               0x00010311
+#define ADM_CMDRSP_MULTI_CHANNEL_COPP_OPEN_V3            0x00010334
 
 
 #define ASM_STREAM_PRIORITY_NORMAL	0
@@ -969,6 +978,16 @@ struct asm_aac_cfg {
 	u32 sample_rate;
 };
 
+struct asm_amrwbplus_cfg {
+	u32  size_bytes;
+	u32  version;
+	u32  num_channels;
+	u32  amr_band_mode;
+	u32  amr_dtx_mode;
+	u32  amr_frame_fmt;
+	u32  amr_lsf_idx;
+};
+
 struct asm_flac_cfg {
 	u16 stream_info_present;
 	u16 min_blk_size;
@@ -1102,6 +1121,7 @@ struct asm_frame_meta_info {
 
 /* Stream level commands */
 #define ASM_STREAM_CMD_OPEN_READ                         0x00010BCB
+#define ASM_STREAM_CMD_OPEN_READ_V2_1                    0x00010DB2
 struct asm_stream_cmd_open_read {
 	struct apr_hdr hdr;
 	u32            uMode;
@@ -1109,6 +1129,16 @@ struct asm_stream_cmd_open_read {
 	u32            pre_proc_top;
 	u32            format;
 } __attribute__((packed));
+
+struct asm_stream_cmd_open_read_v2_1 {
+	struct apr_hdr hdr;
+	u32            uMode;
+	u32            src_endpoint;
+	u32            pre_proc_top;
+	u32            format;
+	u16            bits_per_sample;
+	u16            reserved;
+} __packed;
 
 /* Supported formats */
 #define LINEAR_PCM   0x00010BE5
@@ -1158,6 +1188,7 @@ struct asm_stream_cmd_open_read_compressed {
 } __packed;
 
 #define ASM_STREAM_CMD_OPEN_WRITE                        0x00010BCA
+#define ASM_STREAM_CMD_OPEN_WRITE_V2_1                   0x00010DB1
 struct asm_stream_cmd_open_write {
 	struct apr_hdr hdr;
 	u32            uMode;
@@ -1245,6 +1276,17 @@ struct asm_stream_cmd_encdec_dualmono {
 	u32            param_id;
 	u32            param_size;
 	struct asm_dual_mono channel_map;
+} __packed;
+
+#define ASM_PARAM_ID_AAC_STEREO_MIX_COEFF_SELECTION_FLAG        0x00010DD8
+
+/* Structure for AAC decoder stereo coefficient setting. */
+
+struct asm_aac_stereo_mix_coeff_selection_param {
+	struct apr_hdr				hdr;
+	u32					param_id;
+	u32					param_size;
+	u32					aac_stereo_mix_coeff_flag;
 } __packed;
 
 #define ASM_ENCDEC_DEC_CHAN_MAP				 0x00010D82
@@ -1352,6 +1394,14 @@ struct asm_stream_cmd_read{
 	u32	uid;
 } __attribute__((packed));
 
+#define ASM_DATA_CMD_READ_COMPRESSED                     0x00010DBF
+struct asm_stream_cmd_read_compressed {
+	struct apr_hdr     hdr;
+	u32	buf_add;
+	u32	buf_size;
+	u32	uid;
+} __packed;
+
 #define ASM_DATA_CMD_MEDIA_FORMAT_UPDATE                 0x00010BDC
 #define ASM_DATA_EVENT_ENC_SR_CM_NOTIFY                  0x00010BDE
 struct asm_stream_media_format_update{
@@ -1369,6 +1419,7 @@ struct asm_stream_media_format_update{
 		struct asm_flac_cfg        flac_cfg;
 		struct asm_vorbis_cfg      vorbis_cfg;
 		struct asm_multi_channel_pcm_fmt_blk multi_ch_pcm_cfg;
+		struct asm_amrwbplus_cfg   amrwbplus_cfg;
 	} __attribute__((packed)) write_cfg;
 } __attribute__((packed));
 
@@ -1414,6 +1465,19 @@ struct asm_data_event_read_done{
 	u32            num_frames;
 	u32            id;
 } __attribute__((packed));
+
+#define ASM_DATA_EVENT_READ_COMPRESSED_DONE              0x00010DC0
+struct asm_data_event_read_compressed_done {
+	u32            status;
+	u32            buffer_add;
+	u32            enc_frame_size;
+	u32            offset;
+	u32            msw_ts;
+	u32            lsw_ts;
+	u32            flags;
+	u32            num_frames;
+	u32            id;
+} __packed;
 
 #define ASM_DATA_EVENT_SR_CM_CHANGE_NOTIFY               0x00010C65
 struct asm_data_event_sr_cm_change_notify {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -770,7 +770,7 @@ static long acdb_ioctl(struct file *f,
 		goto done;
 	}
 
-	if (size <= 0) {
+	if ((size <= 0) || (size > sizeof(data))) {
 		pr_err("%s: Invalid size sent to driver: %d\n",
 			__func__, size);
 		result = -EFAULT;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -82,7 +82,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 					SNDRV_PCM_RATE_KNOT),
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 			.channels_min = 1,
-			.channels_max = 6,
+			.channels_max = 8,
 			.rate_min =     8000,
 			.rate_max =	48000,
 		},
@@ -173,7 +173,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 					SNDRV_PCM_RATE_KNOT),
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 			.channels_min = 1,
-			.channels_max = 6,
+			.channels_max = 8,
 			.rate_min =	8000,
 			.rate_max = 48000,
 		},
@@ -199,9 +199,20 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 					SNDRV_PCM_RATE_KNOT),
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 			.channels_min = 1,
-			.channels_max = 6,
+			.channels_max = 8,
 			.rate_min =	8000,
 			.rate_max = 48000,
+		},
+		.capture = {
+			.stream_name = "MultiMedia5 Capture",
+			.aif_name = "MM_UL5",
+			.rates = (SNDRV_PCM_RATE_8000_48000|
+					SNDRV_PCM_RATE_KNOT),
+			.formats = SNDRV_PCM_FMTBIT_S16_LE,
+			.channels_min = 1,
+			.channels_max = 8,
+			.rate_min =     8000,
+			.rate_max =	48000,
 		},
 		.ops = &msm_fe_Multimedia_dai_ops,
 		.name = "MultiMedia5",
@@ -214,7 +225,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 					SNDRV_PCM_RATE_KNOT),
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 			.channels_min = 1,
-			.channels_max = 6,
+			.channels_max = 8,
 			.rate_min =	8000,
 			.rate_max = 48000,
 		},
@@ -229,7 +240,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 					SNDRV_PCM_RATE_KNOT),
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 			.channels_min = 1,
-			.channels_max = 6,
+			.channels_max = 8,
 			.rate_min =	8000,
 			.rate_max = 48000,
 		},
@@ -244,7 +255,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 					SNDRV_PCM_RATE_KNOT),
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 			.channels_min = 1,
-			.channels_max = 6,
+			.channels_max = 8,
 			.rate_min =	8000,
 			.rate_max = 48000,
 		},

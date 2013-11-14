@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -44,10 +44,10 @@ static struct snd_pcm_hardware msm_pcm_hardware = {
 	.channels_max =         1,
 
 	.buffer_bytes_max =     4096 * 2,
-	.period_bytes_min =     4096,
+	.period_bytes_min =     2048,
 	.period_bytes_max =     4096,
 	.periods_min =          2,
-	.periods_max =          2,
+	.periods_max =          4,
 
 	.fifo_size =            0,
 };
@@ -464,7 +464,6 @@ static int msm_voice_tty_mode_put(struct snd_kcontrol *kcontrol,
 
 	voc_set_tty_mode(voc_get_session_id(VOICE_SESSION_NAME), tty_mode);
 
-	voc_set_tty_mode(voc_get_session_id(SGLTE_SESSION_NAME), tty_mode);
 	return 0;
 }
 static int msm_voice_widevoice_put(struct snd_kcontrol *kcontrol,
@@ -476,8 +475,7 @@ static int msm_voice_widevoice_put(struct snd_kcontrol *kcontrol,
 
 	voc_set_widevoice_enable(voc_get_session_id(VOICE_SESSION_NAME),
 				 wv_enable);
-	voc_set_widevoice_enable(voc_get_session_id(SGLTE_SESSION_NAME),
-				 wv_enable);
+
 	return 0;
 }
 
@@ -498,8 +496,6 @@ static int msm_voice_slowtalk_put(struct snd_kcontrol *kcontrol,
 	pr_debug("%s: st enable=%d\n", __func__, st_enable);
 
 	voc_set_pp_enable(voc_get_session_id(VOICE_SESSION_NAME),
-			MODULE_ID_VOICE_MODULE_ST, st_enable);
-	voc_set_pp_enable(voc_get_session_id(SGLTE_SESSION_NAME),
 			MODULE_ID_VOICE_MODULE_ST, st_enable);
 
 	return 0;
@@ -522,8 +518,6 @@ static int msm_voice_fens_put(struct snd_kcontrol *kcontrol,
 	pr_debug("%s: fens enable=%d\n", __func__, fens_enable);
 
 	voc_set_pp_enable(voc_get_session_id(VOICE_SESSION_NAME),
-			MODULE_ID_VOICE_MODULE_FENS, fens_enable);
-	voc_set_pp_enable(voc_get_session_id(SGLTE_SESSION_NAME),
 			MODULE_ID_VOICE_MODULE_FENS, fens_enable);
 
 	return 0;

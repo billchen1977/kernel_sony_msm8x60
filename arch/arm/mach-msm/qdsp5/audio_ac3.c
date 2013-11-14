@@ -1,6 +1,6 @@
 /* arch/arm/mach-msm/audio_ac3.c
  *
- * Copyright (c) 2008-2009, 2011-2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2009, 2011-2012 The Linux Foundation. All rights reserved.
  *
  * This code also borrows from audio_aac.c, which is
  * Copyright (C) 2008 Google, Inc.
@@ -44,7 +44,6 @@
 #include <mach/iommu_domains.h>
 #include <mach/qdsp5/qdsp5audppcmdi.h>
 #include <mach/qdsp5/qdsp5audppmsg.h>
-#include <mach/qdsp5/qdsp5audpp.h>
 #include <mach/qdsp5/qdsp5audplaycmdi.h>
 #include <mach/qdsp5/qdsp5audplaymsg.h>
 #include <mach/qdsp5/qdsp5rmtcmdi.h>
@@ -1029,7 +1028,7 @@ static long audac3_ioctl(struct file *file, unsigned int cmd,
 				handle = ion_alloc(audio->client,
 					(config.buffer_size *
 					config.buffer_count),
-					SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID));
+					SZ_4K, ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 				if (IS_ERR_OR_NULL(handle)) {
 					MM_ERR("Unable to alloc I/P buffs\n");
 					audio->input_buff_handle = NULL;
@@ -1587,7 +1586,7 @@ static int audac3_open(struct inode *inode, struct file *file)
 	audio->client = client;
 
 	handle = ion_alloc(client, DMASZ, SZ_4K,
-			ION_HEAP(ION_AUDIO_HEAP_ID));
+			ION_HEAP(ION_AUDIO_HEAP_ID), 0);
 	if (IS_ERR_OR_NULL(handle)) {
 		MM_ERR("Unable to create allocate O/P buffers\n");
 		rc = -ENOMEM;

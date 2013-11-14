@@ -1,6 +1,6 @@
 /* Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -198,7 +198,7 @@ static unsigned long audio_aio_ion_fixup(struct q6audio_aio *audio, void *addr,
 
 static int audio_aio_pause(struct q6audio_aio  *audio)
 {
-	int rc = 0;
+	int rc = -EINVAL;
 
 	pr_debug("%s[%p], enabled = %d\n", __func__, audio,
 			audio->enabled);
@@ -802,10 +802,17 @@ static void audio_aio_async_write(struct q6audio_aio *audio,
 	struct audio_client *ac;
 	struct audio_aio_write_param param;
 
+        if (!audio || !buf_node) {
+                pr_err("%s: NULL pointer audio=[0x%p], buf_node=[0x%p]\n",
+                        __func__, audio, buf_node);
+                return;
+        }
 	pr_debug("%s[%p]: Send write buff %p phy %lx len %d meta_enable = %d\n",
 		__func__, audio, buf_node, buf_node->paddr,
 		buf_node->buf.data_len,
 		audio->buf_cfg.meta_info_enable);
+	pr_debug("%s[%p]: flags = 0x%x\n", __func__, audio,
+		buf_node->meta_info.meta_in.nflags);
 
 	ac = audio->ac;
 	/* Offset with  appropriate meta */
@@ -825,6 +832,10 @@ static void audio_aio_async_write(struct q6audio_aio *audio,
 		param.flags = 0;
 	else
 		param.flags = 0xFF00;
+
+	if (buf_node->meta_info.meta_in.nflags & AUDIO_DEC_EOF_SET)
+		param.flags |= AUDIO_DEC_EOF_SET;
+
 	param.uid = param.paddr;
 	/* Read command will populate paddr as token */
 	buf_node->token = param.paddr;
@@ -1070,9 +1081,6 @@ int audio_aio_open(struct q6audio_aio *audio, struct file *file)
 	pr_debug("Ion client create in audio_aio_open %p", audio->client);
 	return 0;
 fail:
-	q6asm_audio_client_free(audio->ac);
-	kfree(audio->codec_cfg);
-	kfree(audio);
 	return rc;
 }
 
@@ -1163,9 +1171,12 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		mutex_lock(&audio->lock);
 		if (arg == 1) {
 			rc = audio_aio_pause(audio);
-			if (rc < 0)
+			if (rc < 0) {
 				pr_err("%s[%p]: pause FAILED rc=%d\n",
 					__func__, audio, rc);
+				mutex_unlock(&audio->lock);
+				break;
+			}
 			audio->drv_status |= ADRV_STATUS_PAUSE;
 		} else if (arg == 0) {
 			if (audio->drv_status & ADRV_STATUS_PAUSE) {

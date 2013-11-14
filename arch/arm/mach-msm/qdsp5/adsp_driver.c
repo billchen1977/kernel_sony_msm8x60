@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/qdsp5/adsp_driver.c
  *
  * Copyright (C) 2008 Google, Inc.
- * Copyright (c) 2009, 2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009, 2012 The Linux Foundation. All rights reserved.
  * Author: Iliyan Malchev <ibm@android.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -267,7 +267,7 @@ int adsp_ion_do_cache_op(struct msm_adsp_module *module,
 			module->name, vaddr, len);
 		return ret;
 	}
-	if ((region->ion_flag == CACHED) && region->handle) {
+	if ((region->ion_flag == ION_FLAG_CACHED) && region->handle) {
 		len = ((((len) + 31) & (~31)) + 32);
 		ret = msm_ion_do_cache_op(region->client, region->handle,
 				(void *)paddr, len, cmd);

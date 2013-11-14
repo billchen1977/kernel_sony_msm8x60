@@ -1,6 +1,6 @@
 /* Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -36,6 +36,7 @@
 #define ADRV_STATUS_FSYNC 0x00000008
 #define ADRV_STATUS_PAUSE 0x00000010
 #define AUDIO_DEC_EOS_SET  0x00000001
+#define AUDIO_DEC_EOF_SET  0x00000010
 #define AUDIO_EVENT_NUM		10
 
 #define __CONTAINS(r, v, l) ({                                  \
