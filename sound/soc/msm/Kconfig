@@ -60,7 +60,7 @@ config SND_SOC_MSM8X60
 	select SND_SOC_MSM8X60_PCM
 	select SND_SOC_MSM8X60_DAI
 	select SND_SOC_MSM_QDSP6_INTF
-	default y
+	default n
 	help
 	 To add support for SoC audio on MSM8X60. This driver
 	 Adds support for audio over DSP. The driver adds Kcontrols
@@ -208,5 +208,26 @@ config SND_SOC_DUAL_AMIC
 	bool "SoC feature for dual analog mic"
 	help
 	 To add support for dual analog mic.
+
+config SND_SOC_MSM8X60_PCM_FUJI
+	tristate
+
+config SND_SOC_MSM8X60_COMPRESS_FUJI
+	tristate
+
+config SND_SOC_MSM8X60_VOICE_FUJI
+	tristate
+
+config SND_SOC_MSM8X60_FUJI
+	tristate "SoC Audio over DSP support for MSM8660 fuji board"
+	depends on ARCH_MSM8X60 && SND_SOC && MSM8X60_AUDIO
+	select SND_SOC_MSM8X60_PCM_FUJI
+	select SND_SOC_MSM8X60_COMPRESS_FUJI
+	select SND_SOC_MSM8X60_VOICE_FUJI
+	select SND_SOC_MSM8X60_DAI
+	select SND_SOC_MSM_QDSP6_INTF
+	default y
+	help
+	 To add support for SoC audio on MSM8X60 fuji board. 
 
 endmenu

@@ -29,7 +29,6 @@ obj-$(CONFIG_SND_SOC_MSM8X60_PCM) += snd-soc-msm8x60-pcm.o
 snd-soc-msm8x60-objs := msm8x60.o
 obj-$(CONFIG_SND_SOC_MSM8X60) += snd-soc-msm8x60.o
 
-
 #MVS Support
 snd-soc-msm-mvs-dai-objs := mvs-dai.o
 obj-$(CONFIG_SND_MSM_MVS_DAI_SOC) += snd-soc-msm-mvs-dai.o
@@ -51,6 +50,13 @@ obj-$(CONFIG_SND_VOIP_PCM) += snd-soc-msm-voip.o
 
 snd-soc-lpass-dma-objs := lpass-dma.o
 obj-$(CONFIG_SND_SOC_MSM8X60) += snd-soc-lpass-dma.o
+
+# fuji ALSA Support
+obj-$(CONFIG_SND_SOC_MSM8X60_PCM_FUJI) += msm8x60-pcm-fuji.o
+obj-$(CONFIG_SND_SOC_MSM8X60_COMPRESS_FUJI) += msm8x60-compr-fuji.o
+obj-$(CONFIG_SND_SOC_MSM8X60_VOICE_FUJI) += msm8x60-voice-fuji.o
+obj-$(CONFIG_SND_SOC_MSM8X60_FUJI) += msm8x60-fuji.o
+obj-$(CONFIG_SND_SOC_MSM8X60_FUJI) += snd-soc-lpass-dma.o
 
 # for MSM 8960 sound card driver
 

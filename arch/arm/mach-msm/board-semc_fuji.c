@@ -4092,10 +4092,80 @@ static struct platform_device ramdumplog_device = {
 };
 #endif
 
+#ifdef CONFIG_SND_SOC_MSM8X60_FUJI
+struct platform_device msm_pcm_dsp1 = {
+	.name   = "msm-dsp-audio",
+	.id     = 1,
+};
+struct platform_device msm_cpu_dai1 = {
+	.name   = "msm-cpu-dai",
+	.id     = 1,
+};
+struct platform_device msm_codec_dai1 = {
+	.name   = "msm-codec-dai",
+	.id     = 1,
+};
+struct platform_device msm_pcm_dsp2 = {
+	.name   = "msm-dsp-audio",
+	.id     = 2,
+};
+struct platform_device msm_cpu_dai2 = {
+	.name   = "msm-cpu-dai",
+	.id     = 2,
+};
+struct platform_device msm_codec_dai2 = {
+	.name   = "msm-codec-dai",
+	.id     = 2,
+};
+struct platform_device msm_compr_dsp = {
+	.name	= "msm-compr-dsp",
+	.id	= -1,
+};
+struct platform_device msm_compr_dai = {
+	.name   = "msm-compr-dai",
+	.id     = -1,
+};
+struct platform_device msm_codec_dai3 = {
+	.name   = "msm-codec-dai",
+	.id     = 3,
+};
+struct platform_device msm_pcm_voice = {
+	.name	= "msm-pcm-voice",
+	.id	= -1,
+};
+struct platform_device msm_cpu_dai4 = {
+	.name   = "msm-cpu-dai",
+	.id     = 4,
+};
+struct platform_device msm_codec_dai4 = {
+	.name   = "msm-codec-dai",
+	.id     = 4,
+};
+#endif
+
 static struct platform_device *asoc_devices[] __initdata = {
 	&asoc_msm_pcm,
 	&asoc_msm_dai0,
 	&asoc_msm_dai1,
+#ifdef CONFIG_SND_SOC_MSM8X60_FUJI
+    &msm_pcm_dsp1,
+	&msm_cpu_dai1,
+	&msm_codec_dai1,
+	&msm_pcm_dsp2,
+	&msm_cpu_dai2,
+	&msm_codec_dai2,
+	&msm_compr_dsp,
+	&msm_compr_dai,
+	&msm_codec_dai3,
+	&msm_pcm_voice,
+	&msm_cpu_dai4,
+	&msm_codec_dai4,
+#endif
+#ifdef CONFIG_MSM_8x60_VOIP
+	&asoc_msm_mvs,
+	&asoc_mvs_dai0,
+	&asoc_mvs_dai1,
+#endif
 };
 
 #ifdef CONFIG_QSEECOM
@@ -4341,11 +4411,6 @@ static struct platform_device *fuji_devices[] __initdata = {
 #endif
 #ifdef CONFIG_RAMDUMP_CRASH_LOGS
 	&ramdumplog_device,
-#endif
-#ifdef CONFIG_MSM_8x60_VOIP
-	&asoc_msm_mvs,
-	&asoc_mvs_dai0,
-	&asoc_mvs_dai1,
 #endif
 #ifdef CONFIG_SONY_SSM
        &sony_ssm_device,
