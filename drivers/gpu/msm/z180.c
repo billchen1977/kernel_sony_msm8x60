@@ -216,11 +216,6 @@ static irqreturn_t z180_irq_handler(struct kgsl_device *device)
 		}
 	}
 
-	if ((device->pwrctrl.nap_allowed == true) &&
-		(device->requested_state == KGSL_STATE_NONE)) {
-		kgsl_pwrctrl_request_state(device, KGSL_STATE_NAP);
-		queue_work(device->work_queue, &device->idle_check_ws);
-	}
 	mod_timer_pending(&device->idle_timer,
 			jiffies + device->pwrctrl.interval_timeout);
 
@@ -399,7 +394,9 @@ z180_cmdstream_issueibcmds(struct kgsl_device_private *dev_priv,
 
 	mutex_lock(&device->mutex);
 
-	kgsl_active_count_get(device);
+	result = kgsl_active_count_get(device);
+	if (result)
+		goto error_active_count;
 
 	if (cmdbatch == NULL) {
 		result = EINVAL;
@@ -508,7 +505,7 @@ error:
 		*timestamp, cmdbatch->flags, result, 0);
 
 	kgsl_active_count_put(device);
-
+error_active_count:
 	mutex_unlock(&device->mutex);
 
 	return (int)result;
@@ -605,7 +602,6 @@ static int z180_start(struct kgsl_device *device)
 
 	z180_cmdstream_start(device);
 
-	mod_timer(&device->idle_timer, jiffies + FIRST_TIMEOUT);
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
 	device->ftbl->irqctrl(device, 1);
 
@@ -853,9 +849,13 @@ static int z180_waittimestamp(struct kgsl_device *device,
 	if (msecs == -1)
 		msecs = Z180_IDLE_TIMEOUT;
 
-	mutex_unlock(&device->mutex);
-	status = z180_wait(device, context, timestamp, msecs);
-	mutex_lock(&device->mutex);
+	status = kgsl_active_count_get(device);
+	if (!status) {
+		mutex_unlock(&device->mutex);
+		status = z180_wait(device, context, timestamp, msecs);
+		mutex_lock(&device->mutex);
+		kgsl_active_count_put(device);
+	}
 
 	return status;
 }
@@ -904,11 +904,16 @@ z180_drawctxt_create(struct kgsl_device_private *dev_priv,
 static int
 z180_drawctxt_detach(struct kgsl_context *context)
 {
+    int ret;
 	struct kgsl_device *device;
 	struct z180_device *z180_dev;
 
 	device = context->device;
 	z180_dev = Z180_DEVICE(device);
+
+	ret = kgsl_active_count_get(device);
+	if (ret)
+		return ret;
 
 	z180_idle(device);
 
@@ -918,7 +923,7 @@ z180_drawctxt_detach(struct kgsl_context *context)
 		kgsl_setstate(&device->mmu, KGSL_MEMSTORE_GLOBAL,
 				KGSL_MMUFLAGS_PTUPDATE);
 	}
-
+	kgsl_active_count_put(device);
 	return 0;
 }
 
