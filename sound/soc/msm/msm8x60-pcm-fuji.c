@@ -35,12 +35,12 @@
 
 #define PLAYBACK_MIN_PERIODS		2
 #define PLAYBACK_MAX_PERIODS		8
-#define PLAYBACK_MAX_PERIOD_SIZE	4096
 #define PLAYBACK_MIN_PERIOD_SIZE	128
+#define PLAYBACK_MAX_PERIOD_SIZE	6144
 #define CAPTURE_MIN_PERIODS		2
 #define CAPTURE_MAX_PERIODS		2
 #define CAPTURE_MIN_PERIOD_SIZE	128
-#define CAPTURE_MAX_PERIOD_SIZE	1024
+#define CAPTURE_MAX_PERIOD_SIZE	4096
 
 static struct snd_pcm_hardware msm_pcm_hardware_capture = {
 	.info =                 (SNDRV_PCM_INFO_MMAP |
@@ -230,7 +230,7 @@ static int msm_pcm_capture_prepare(struct snd_pcm_substream *substream)
 	ret = q6asm_enc_cfg_blk_pcm(prtd->audio_client, runtime->rate,
 					runtime->channels);
 	if (ret < 0)
-		pr_debug("%s: cmd cfg pcm was block failed", __func__);
+		pr_err("%s: cmd cfg pcm was block failed", __func__);
 
 	for (i = 0; i < runtime->periods; i++)
 		q6asm_read_nolock(prtd->audio_client);
