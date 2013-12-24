@@ -1108,7 +1108,10 @@ a2xx_getchipid(struct kgsl_device *device)
 
 	minorid = ((revid >> 0)  & 0xFF);
 
-	patchid = ((revid >> 16) & 0xFF);
+	if (cpu_is_msm8x60())
+	    patchid = 0x10;
+	else
+	    patchid = ((revid >> 16) & 0xFF);
 
 	/* 8x50 returns 0 for patch release, but it should be 1 */
 	/* 8x25 returns 0 for minor id, but it should be 1 */
