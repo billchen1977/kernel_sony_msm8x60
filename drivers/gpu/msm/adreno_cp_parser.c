@@ -550,90 +550,93 @@ static void ib_parse_type0(struct kgsl_device *device, unsigned int *ptr,
 	struct ib_parser_variables *ib_parse_vars)
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	int size = type0_pkt_size(*ptr);
-	int offset = type0_pkt_offset(*ptr);
-	int i;
 
-	for (i = 0; i < size; i++, offset++) {
-
-		/* Visiblity stream buffer */
-
-		if (offset >= adreno_getreg(adreno_dev,
-				ADRENO_REG_VSC_PIPE_DATA_ADDRESS_0) &&
-			offset <= adreno_getreg(adreno_dev,
-					ADRENO_REG_VSC_PIPE_DATA_LENGTH_7)) {
-			int index = offset - adreno_getreg(adreno_dev,
-					ADRENO_REG_VSC_PIPE_DATA_ADDRESS_0);
-
-			/* Each bank of address and length registers are
-			 * interleaved with an empty register:
-			 *
-			 * address 0
-			 * length 0
-			 * empty
-			 * address 1
-			 * length 1
-			 * empty
-			 * ...
-			 */
-
-			if ((index % 3) == 0)
-				ib_parse_vars->vsc_pipe[index / 3].base =
-								ptr[i + 1];
-			else if ((index % 3) == 1)
-				ib_parse_vars->vsc_pipe[index / 3].size =
-								ptr[i + 1];
-		} else if ((offset >= adreno_getreg(adreno_dev,
-					ADRENO_REG_VFD_FETCH_INSTR_0_0)) &&
-			(offset <= adreno_getreg(adreno_dev,
-					ADRENO_REG_VFD_FETCH_INSTR_1_F))) {
-			int index = offset -
-				adreno_getreg(adreno_dev,
-					ADRENO_REG_VFD_FETCH_INSTR_0_0);
-
-			/*
-			 * FETCH_INSTR_0_X and FETCH_INSTR_1_X banks are
-			 * interleaved as above but without the empty register
-			 * in between
-			 */
-
-			if ((index % 2) == 0)
-				ib_parse_vars->vbo[index >> 1].stride =
-					(ptr[i + 1] >> 7) & 0x1FF;
-			else
-				ib_parse_vars->vbo[index >> 1].base =
-					ptr[i + 1];
-		} else {
-			/*
-			 * Cache various support registers for calculating
-			 * buffer sizes
-			 */
-
-			if (offset ==
-				adreno_getreg(adreno_dev,
-						ADRENO_REG_VFD_CONTROL_0))
-				ib_parse_vars->vfd_control_0 = ptr[i + 1];
-			else if (offset ==
-				adreno_getreg(adreno_dev,
-						ADRENO_REG_VFD_INDEX_MAX))
-				ib_parse_vars->vfd_index_max = ptr[i + 1];
-			else if (offset ==
-				adreno_getreg(adreno_dev,
-						ADRENO_REG_VSC_SIZE_ADDRESS))
-				ib_parse_vars->vsc_size_address = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_VS_PVT_MEM_ADDR_REG))
-				ib_parse_vars->sp_vs_pvt_mem_addr = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_FS_PVT_MEM_ADDR_REG))
-				ib_parse_vars->sp_fs_pvt_mem_addr = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_VS_OBJ_START_REG))
-				ib_parse_vars->sp_vs_obj_start_reg = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_FS_OBJ_START_REG))
-				ib_parse_vars->sp_fs_obj_start_reg = ptr[i + 1];
-		}
+	if (!adreno_is_a2xx(adreno_dev)) {
+	    int size = type0_pkt_size(*ptr);
+	    int offset = type0_pkt_offset(*ptr);
+	    int i;
+        
+	    for (i = 0; i < size; i++, offset++) {
+        
+	    	/* Visiblity stream buffer */
+        
+	    	if (offset >= adreno_getreg(adreno_dev,
+	    			ADRENO_REG_VSC_PIPE_DATA_ADDRESS_0) &&
+	    		offset <= adreno_getreg(adreno_dev,
+	    				ADRENO_REG_VSC_PIPE_DATA_LENGTH_7)) {
+	    		int index = offset - adreno_getreg(adreno_dev,
+	    				ADRENO_REG_VSC_PIPE_DATA_ADDRESS_0);
+        
+	    		/* Each bank of address and length registers are
+	    		 * interleaved with an empty register:
+	    		 *
+	    		 * address 0
+	    		 * length 0
+	    		 * empty
+	    		 * address 1
+	    		 * length 1
+	    		 * empty
+	    		 * ...
+	    		 */
+        
+	    		if ((index % 3) == 0)
+	    			ib_parse_vars->vsc_pipe[index / 3].base =
+	    							ptr[i + 1];
+	    		else if ((index % 3) == 1)
+	    			ib_parse_vars->vsc_pipe[index / 3].size =
+	    							ptr[i + 1];
+	    	} else if ((offset >= adreno_getreg(adreno_dev,
+	    				ADRENO_REG_VFD_FETCH_INSTR_0_0)) &&
+	    		(offset <= adreno_getreg(adreno_dev,
+	    				ADRENO_REG_VFD_FETCH_INSTR_1_F))) {
+	    		int index = offset -
+	    			adreno_getreg(adreno_dev,
+	    				ADRENO_REG_VFD_FETCH_INSTR_0_0);
+        
+	    		/*
+	    		 * FETCH_INSTR_0_X and FETCH_INSTR_1_X banks are
+	    		 * interleaved as above but without the empty register
+	    		 * in between
+	    		 */
+        
+	    		if ((index % 2) == 0)
+	    			ib_parse_vars->vbo[index >> 1].stride =
+	    				(ptr[i + 1] >> 7) & 0x1FF;
+	    		else
+	    			ib_parse_vars->vbo[index >> 1].base =
+	    				ptr[i + 1];
+	    	} else {
+	    		/*
+	    		 * Cache various support registers for calculating
+	    		 * buffer sizes
+	    		 */
+        
+	    		if (offset ==
+	    			adreno_getreg(adreno_dev,
+	    					ADRENO_REG_VFD_CONTROL_0))
+	    			ib_parse_vars->vfd_control_0 = ptr[i + 1];
+	    		else if (offset ==
+	    			adreno_getreg(adreno_dev,
+	    					ADRENO_REG_VFD_INDEX_MAX))
+	    			ib_parse_vars->vfd_index_max = ptr[i + 1];
+	    		else if (offset ==
+	    			adreno_getreg(adreno_dev,
+	    					ADRENO_REG_VSC_SIZE_ADDRESS))
+	    			ib_parse_vars->vsc_size_address = ptr[i + 1];
+	    		else if (offset == adreno_getreg(adreno_dev,
+	    				ADRENO_REG_SP_VS_PVT_MEM_ADDR_REG))
+	    			ib_parse_vars->sp_vs_pvt_mem_addr = ptr[i + 1];
+	    		else if (offset == adreno_getreg(adreno_dev,
+	    				ADRENO_REG_SP_FS_PVT_MEM_ADDR_REG))
+	    			ib_parse_vars->sp_fs_pvt_mem_addr = ptr[i + 1];
+	    		else if (offset == adreno_getreg(adreno_dev,
+	    				ADRENO_REG_SP_VS_OBJ_START_REG))
+	    			ib_parse_vars->sp_vs_obj_start_reg = ptr[i + 1];
+	    		else if (offset == adreno_getreg(adreno_dev,
+	    				ADRENO_REG_SP_FS_OBJ_START_REG))
+	    			ib_parse_vars->sp_fs_obj_start_reg = ptr[i + 1];
+	    	}
+	    }
 	}
 	ib_add_type0_entries(device, ptbase, ib_obj_list,
 				ib_parse_vars);
