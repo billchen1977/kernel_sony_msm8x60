@@ -873,6 +873,8 @@ static void hdmi_msm_cec_latch_work(struct work_struct *work)
 static void hdcp_deauthenticate(void);
 static void hdmi_msm_hdcp_reauth_work(struct work_struct *work)
 {
+    boolean reauth;
+    
 	if (!hdmi_msm_state->hdcp_enable) {
 		DEV_DBG("%s: HDCP not enabled\n", __func__);
 		return;
@@ -896,9 +898,19 @@ static void hdmi_msm_hdcp_reauth_work(struct work_struct *work)
 	 */
 	hdcp_deauthenticate();
 	mutex_lock(&hdcp_auth_state_mutex);
-	hdmi_msm_state->reauth = TRUE;
+	hdmi_msm_state->reauth_count++;
+	if (hdmi_msm_state->reauth_count < HDMI_REAUTH_MAX) 
+	    hdmi_msm_state->reauth = TRUE;
+	else
+	    hdmi_msm_state->reauth = FALSE;
+	reauth = hdmi_msm_state->reauth;
 	mutex_unlock(&hdcp_auth_state_mutex);
-	mod_timer(&hdmi_msm_state->hdcp_timer, jiffies + HZ/2);
+	if (reauth == TRUE) {
+	    mod_timer(&hdmi_msm_state->hdcp_timer, jiffies + HZ/2);
+	} else {
+	    hdmi_msm_state->hdcp_enable = FALSE;
+	    hdmi_msm_turn_on();
+	}
 }
 
 static void hdmi_msm_hdcp_work(struct work_struct *work)
@@ -992,6 +1004,7 @@ int hdmi_msm_process_hdcp_interrupts(void)
 			if (((link_status & 0xF0) >> 4) != 0x7) {
 				DEV_DBG("Reauthenticate From %s HDCP FAIL INT ",
 					__func__);
+				hdmi_msm_state->reauth_count = 0;
 				queue_work(hdmi_work_queue,
 				    &hdmi_msm_state->hdcp_reauth_work);
 			} else {
@@ -3071,9 +3084,11 @@ error:
 		mutex_unlock(&hdcp_auth_state_mutex);
 	} else {
 		DEV_WARN("[DEV_DBG]: Calling reauth from [%s]\n", __func__);
-		if (hdmi_msm_state->panel_power_on)
+		if (hdmi_msm_state->panel_power_on) {
+		    
 			queue_work(hdmi_work_queue,
 			    &hdmi_msm_state->hdcp_reauth_work);
+	    }
 	}
 	mutex_lock(&hdmi_msm_state_mutex);
 	hdmi_msm_state->hdcp_activating = FALSE;
@@ -4426,6 +4441,7 @@ static int hdmi_msm_power_on(struct platform_device *pdev)
 				/* Kick off HDCP Authentication */
 				mutex_lock(&hdcp_auth_state_mutex);
 				hdmi_msm_state->reauth = FALSE;
+				hdmi_msm_state->reauth_count = 0;
 				hdmi_msm_state->full_auth_done = FALSE;
 				mutex_unlock(&hdcp_auth_state_mutex);
 				mod_timer(&hdmi_msm_state->hdcp_timer,
@@ -4460,6 +4476,7 @@ void mhl_connect_api(boolean on)
 	if (on) {
 		hdmi_msm_read_edid();
 		hdmi_msm_state->reauth = FALSE ;
+		hdmi_msm_state->reauth_count = 0;
 		/* Build EDID table */
 		hdmi_msm_turn_on();
 		DEV_INFO("HDMI HPD: CONNECTED: send ONLINE\n");
