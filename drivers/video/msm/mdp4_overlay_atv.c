@@ -115,7 +115,12 @@ int mdp4_atv_on(struct platform_device *pdev)
 
 	mdp4_overlay_dmae_xy(pipe);	/* dma_e */
 	mdp4_overlay_dmae_cfg(mfd, 1);
-	mdp4_overlay_rgb_setup(pipe);
+
+	if (pipe->pipe_type == OVERLAY_TYPE_RGB)
+		mdp4_overlay_rgb_setup(pipe);
+	else
+	    mdp4_overlay_vg_setup(pipe);
+
 
 	mdp4_overlayproc_cfg(pipe);
 
