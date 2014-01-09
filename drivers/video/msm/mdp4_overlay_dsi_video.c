@@ -629,6 +629,8 @@ int mdp4_dsi_video_on(struct platform_device *pdev)
 	pipe->src_x = 0;
 	pipe->dst_h = fbi->var.yres;
 	pipe->dst_w = fbi->var.xres;
+	pipe->dst_y = 0;
+	pipe->dst_x = 0;
 	pipe->srcp0_ystride = fbi->fix.line_length;
 	pipe->bpp = bpp;
 
@@ -636,9 +638,6 @@ int mdp4_dsi_video_on(struct platform_device *pdev)
 		pipe->srcp0_addr = mfd->display_iova + buf_offset;
 	else
 		pipe->srcp0_addr = (uint32)(buf + buf_offset);
-
-	pipe->dst_h = fbi->var.yres;
-	pipe->dst_w = fbi->var.xres;
 
 	mdp4_overlay_mdp_pipe_req(pipe, mfd);
 	mdp4_calc_blt_mdp_bw(mfd, pipe);
