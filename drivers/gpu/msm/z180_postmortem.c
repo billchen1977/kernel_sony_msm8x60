@@ -211,7 +211,7 @@ int z180_dump(struct kgsl_device *device, int manual)
 
 	mb();
 
-	KGSL_LOG_DUMP(device, "Retired Timestamp: %d\n", z180_dev->timestamp);
+	KGSL_LOG_DUMP(device, "Retired Timestamp: %d\n", atomic_read(&z180_dev->timestamp));
 	KGSL_LOG_DUMP(device,
 			"Current Timestamp: %d\n", z180_dev->current_timestamp);
 

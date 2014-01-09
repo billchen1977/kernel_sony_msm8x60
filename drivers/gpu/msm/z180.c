@@ -217,7 +217,7 @@ static irqreturn_t z180_irq_handler(struct kgsl_device *device)
 
 			count >>= 8;
 			count &= 255;
-			z180_dev->timestamp += count;
+			atomic_add(count, &z180_dev->timestamp);
 
 			queue_work(device->work_queue, &device->ts_expired_ws);
 			wake_up_interruptible(&device->wait_queue);
@@ -352,7 +352,7 @@ static int room_in_rb(struct z180_device *device)
 {
 	int ts_diff;
 
-	ts_diff = device->current_timestamp - device->timestamp;
+	ts_diff = device->current_timestamp - atomic_read(&device->timestamp);
 
 	return ts_diff < Z180_PACKET_COUNT;
 }
@@ -369,7 +369,7 @@ int z180_idle(struct kgsl_device *device)
 	struct z180_device *z180_dev = Z180_DEVICE(device);
 
 	if (timestamp_cmp(z180_dev->current_timestamp,
-		z180_dev->timestamp) > 0)
+		atomic_read(&z180_dev->timestamp)) > 0)
 		status = z180_wait(device, NULL,
 				z180_dev->current_timestamp,
 				Z180_IDLE_TIMEOUT);
@@ -586,7 +586,7 @@ static int z180_init(struct kgsl_device *device)
 {
 	struct z180_device *z180_dev = Z180_DEVICE(device);
 
-	z180_dev->timestamp = 0;
+	atomic_set(&z180_dev->timestamp, 0);
 	z180_dev->current_timestamp = 0;
 
 	return 0;
@@ -702,7 +702,7 @@ static bool z180_isidle(struct kgsl_device *device)
 {
 	struct z180_device *z180_dev = Z180_DEVICE(device);
 
-	return (timestamp_cmp(z180_dev->timestamp,
+	return (timestamp_cmp(atomic_read(&z180_dev->timestamp),
 		z180_dev->current_timestamp) == 0) ? true : false;
 }
 
@@ -849,7 +849,7 @@ static unsigned int z180_readtimestamp(struct kgsl_device *device,
 	struct z180_device *z180_dev = Z180_DEVICE(device);
 	(void)context;
 	/* get current EOP timestamp */
-	return z180_dev->timestamp;
+	return atomic_read(&z180_dev->timestamp);
 }
 
 static int z180_waittimestamp(struct kgsl_device *device,
