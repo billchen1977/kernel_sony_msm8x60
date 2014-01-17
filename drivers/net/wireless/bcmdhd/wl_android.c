@@ -380,6 +380,8 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 		err = dhd_dev_pno_get_for_batch(dev, command, total_len);
 		if (err < 0) {
 			DHD_ERROR(("failed to getting batching results\n"));
+		} else {
+			err = strlen(command);
 		}
 	} else if (!strncmp(pos, PNO_BATCHING_STOP, strlen(PNO_BATCHING_STOP))) {
 		err = dhd_dev_pno_stop_for_batch(dev);
@@ -1152,13 +1154,7 @@ int wifi_get_irq_number(unsigned long *irq_flags_ptr)
 		return (int)wifi_irqres->start;
 	}
 #ifdef CUSTOM_OOB_GPIO_NUM
-#ifdef CONFIG_MACH_SEMC_NOZOMI
-	gpio_request(CUSTOM_OOB_GPIO_NUM, "WL_HOST_WAKEUP");
-	gpio_direction_input(CUSTOM_OOB_GPIO_NUM);
-	return MSM_GPIO_TO_INT(CUSTOM_OOB_GPIO_NUM);
-#else
 	return CUSTOM_OOB_GPIO_NUM;
-#endif
 #else
 	return -1;
 #endif

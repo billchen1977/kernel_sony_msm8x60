@@ -243,32 +243,6 @@ struct pm8xxx_mpp_init_info {
 #define MPU3050_GPIO			(30)
 #endif
 
-#define PREALLOC_WLAN_NUMBER_OF_SECTIONS	4
-#define PREALLOC_WLAN_NUMBER_OF_BUFFERS		160
-#define PREALLOC_WLAN_SECTION_HEADER		24
-
-#define WLAN_SECTION_SIZE_0	(PREALLOC_WLAN_NUMBER_OF_BUFFERS * 128)
-#define WLAN_SECTION_SIZE_1	(PREALLOC_WLAN_NUMBER_OF_BUFFERS * 256)
-#define WLAN_SECTION_SIZE_2	(PREALLOC_WLAN_NUMBER_OF_BUFFERS * 512)
-#define WLAN_SECTION_SIZE_3	(PREALLOC_WLAN_NUMBER_OF_BUFFERS * 1024)
-
-#define WLAN_SKB_BUF_NUM	16
-
-static struct sk_buff *wlan_static_skb[WLAN_SKB_BUF_NUM];
-
-typedef struct wifi_mem_prealloc_struct {
-	void *mem_ptr;
-	unsigned long size;
-} wifi_mem_prealloc_t;
-
-static wifi_mem_prealloc_t wifi_mem_array[PREALLOC_WLAN_NUMBER_OF_SECTIONS] = {
-	{ NULL, (WLAN_SECTION_SIZE_0 + PREALLOC_WLAN_SECTION_HEADER) },
-	{ NULL, (WLAN_SECTION_SIZE_1 + PREALLOC_WLAN_SECTION_HEADER) },
-	{ NULL, (WLAN_SECTION_SIZE_2 + PREALLOC_WLAN_SECTION_HEADER) },
-	{ NULL, (WLAN_SECTION_SIZE_3 + PREALLOC_WLAN_SECTION_HEADER) }
-};
-
-
 #ifdef CONFIG_MMC_MSM_SDC2_SUPPORT
 static void (*sdc2_status_notify_cb)(int card_present, void *dev_id);
 static void *sdc2_status_notify_cb_devid;
@@ -3849,37 +3823,32 @@ struct platform_device msm_device_sdio_al = {
 #endif /* CONFIG_MSM_SDIO_AL */
 
 #define WL_RST_N (130)
+#define WL_OOB_IRQ (128)
 
-static int fuji_wifi_set_power(int val)
+static int __init fuji_wifi_init(void)
 {
-    gpio_set_value(WL_RST_N, val);
-    return 0;
+	int rc;
+
+	rc = gpio_request(WL_RST_N, "WL_RST_N gpio");
+	if (rc)
+		pr_err("WL_RST_N gpio request failed:%d\n", rc);
+
+	rc = gpio_direction_output(WL_RST_N, 0);
+	if (rc)
+		pr_err("WL_RST_N gpio direction configuration failed:%d\n", rc);
+
+	return 0;
 }
 
-static void *fuji_wifi_mem_prealloc(int section, unsigned long size)
+late_initcall(fuji_wifi_init);
+
+static int fuji_wifi_set_power(int on)
 {
-	if (section == PREALLOC_WLAN_NUMBER_OF_SECTIONS)
-		return wlan_static_skb;
-	if (section < 0 || section > PREALLOC_WLAN_NUMBER_OF_SECTIONS)
-		return kmalloc(size, GFP_KERNEL);
-	if (wifi_mem_array[section].size < size)
-		return NULL;
-	return wifi_mem_array[section].mem_ptr;
-}
+	pr_err("Powering %s wifi\n", (on ? "on" : "off"));
 
-int __init fuji_init_wifi_mem(void)
-{
-	int i;
+    gpio_set_value(WL_RST_N, on);
+	msleep(200);
 
-	for (i = 0; i < WLAN_SKB_BUF_NUM; i++)
-		wlan_static_skb[i] = dev_alloc_skb(4096);
-
-	for (i = 0; i < PREALLOC_WLAN_NUMBER_OF_SECTIONS; i++) {
-		wifi_mem_array[i].mem_ptr = kmalloc(wifi_mem_array[i].size,
-							GFP_KERNEL);
-		if (wifi_mem_array[i].mem_ptr == NULL)
-			return -ENOMEM;
-	}
 	return 0;
 }
 
@@ -3901,7 +3870,7 @@ static unsigned int fuji_wifi_status(struct device *dev)
 	return fuji_wifi_cd;
 }
 
-int fuji_wifi_set_carddetect(int val)
+static int fuji_wifi_set_carddetect(int val)
 {
 	fuji_wifi_cd = val;
 	if (wifi_status_cb)
@@ -3951,7 +3920,7 @@ static int fuji_wifi_aton(const char *orig, size_t len, unsigned char *eth)
 	return 0;
 }
 
-int fuji_wifi_get_mac_addr(unsigned char *buf)
+static int fuji_wifi_get_mac_addr(unsigned char *buf)
 {
 	int ret = 0;
 	int length;
@@ -4011,23 +3980,98 @@ int fuji_wifi_get_mac_addr(unsigned char *buf)
 	return ret;
 }
 
-struct wifi_platform_data fuji_wifi_control = {
-    .set_power      = fuji_wifi_set_power,
-	.set_carddetect = fuji_wifi_set_carddetect,
-	.mem_prealloc	= fuji_wifi_mem_prealloc,
-	.get_mac_addr   = fuji_wifi_get_mac_addr,
+/* Customized Locale table : OPTIONAL feature */
+#define WLC_CNTRY_BUF_SZ        4
+typedef struct cntry_locales_custom {
+	char iso_abbrev[WLC_CNTRY_BUF_SZ];
+	char custom_locale[WLC_CNTRY_BUF_SZ];
+	int  custom_locale_rev;
+} cntry_locales_custom_t;
+
+static cntry_locales_custom_t fuji_wifi_translate_custom_table[] = {
+/* Table should be filled out based on custom platform regulatory requirement */
+	{"",   "XY", 9},  /* universal */
+	{"US", "Q2", 32}, /* input ISO "US" to : Q2 regrev 32 */
+	{"CA", "Q2", 32}, /* input ISO "CA" to : Q2 regrev 32 */
+	{"EU", "EU", 51}, /* European union countries */
+	{"AT", "EU", 51},
+	{"BE", "EU", 51},
+	{"BG", "EU", 51},
+	{"CY", "EU", 51},
+	{"CZ", "EU", 51},
+	{"DK", "EU", 51},
+	{"EE", "EU", 51},
+	{"FI", "EU", 51},
+	{"FR", "EU", 51},
+	{"DE", "EU", 51},
+	{"GR", "EU", 51},
+	{"HU", "EU", 51},
+	{"IE", "EU", 51},
+	{"IT", "EU", 51},
+	{"LV", "EU", 51},
+	{"LI", "EU", 51},
+	{"LT", "EU", 51},
+	{"LU", "EU", 51},
+	{"MT", "EU", 51},
+	{"NL", "EU", 51},
+	{"PL", "EU", 51},
+	{"PT", "EU", 51},
+	{"RO", "EU", 51},
+	{"SK", "EU", 51},
+	{"SI", "EU", 51},
+	{"ES", "EU", 51},
+	{"SE", "EU", 51},
+	{"GB", "EU", 51}, /* input ISO "GB" to : EU regrev 51 */
+	{"IL", "IL", 0},
+	{"CH", "CH", 0},
+	{"TR", "TR", 0},
+	{"NO", "NO", 0},
+	{"KR", "KR", 25},
+	{"AU", "XY", 9},
+	{"CN", "CN", 0},
+	{"TW", "XY", 9},
+	{"AR", "XY", 9},
+	{"MX", "XY", 9},
+	{"JP", "EU", 51},
+	{"BR", "KR", 25}
 };
 
-static int __init fuji_wifi_init(void)
+static void *fuji_wifi_get_country_code(char *ccode)
 {
-	return fuji_init_wifi_mem();
+	int i;
+
+	if (!ccode)
+		return NULL;
+
+	for (i = 0; i < ARRAY_SIZE(fuji_wifi_translate_custom_table); i++)
+		if (strcmp(ccode, fuji_wifi_translate_custom_table[i].iso_abbrev) == 0)
+			return &fuji_wifi_translate_custom_table[i];
+
+	return &fuji_wifi_translate_custom_table[0];
 }
 
-late_initcall(fuji_wifi_init);
+static struct wifi_platform_data fuji_wifi_control = {
+    .set_power      = fuji_wifi_set_power,
+	.set_carddetect = fuji_wifi_set_carddetect,
+	.get_mac_addr   = fuji_wifi_get_mac_addr,
+	.get_country_code   = fuji_wifi_get_country_code,
+};
+
+static struct resource fuji_wifi_resource[] = {
+	[0] = {
+		.name	= "bcmdhd_wlan_irq",
+		.start	= MSM_GPIO_TO_INT(WL_OOB_IRQ),
+		.end	= MSM_GPIO_TO_INT(WL_OOB_IRQ),
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL |
+			  IORESOURCE_IRQ_SHAREABLE,
+	},
+};
 
 static struct platform_device fuji_wifi = {
 	.name   = "bcmdhd_wlan",
 	.id	    = -1,
+	.num_resources	= ARRAY_SIZE(fuji_wifi_resource),
+	.resource	= fuji_wifi_resource,
 	.dev    = {
 		.platform_data = &fuji_wifi_control,
 	},
