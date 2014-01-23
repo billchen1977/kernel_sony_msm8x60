@@ -234,6 +234,8 @@ struct sg_table *ion_sg_table(struct ion_client *client,
  * will return a non-secure uncached mapping.
  */
 void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle);
+void *ion_map_kernel_old(struct ion_client *client, struct ion_handle *handle,
+                unsigned long flags);
 
 /**
  * ion_unmap_kernel() - destroy a kernel mapping for a handle
@@ -607,6 +609,7 @@ struct ion_custom_data {
  * filed set to the corresponding opaque handle.
  */
 #define ION_IOC_IMPORT		_IOWR(ION_IOC_MAGIC, 5, struct ion_fd_data)
+#define ION_IOC_IMPORT_OLD		_IOWR(ION_IOC_MAGIC, 5, int)
 
 /**
  * DOC: ION_IOC_CUSTOM - call architecture specific ion ioctl
