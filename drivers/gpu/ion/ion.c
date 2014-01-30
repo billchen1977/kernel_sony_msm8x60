@@ -115,7 +115,7 @@ static int ion_validate_buffer_flags(struct ion_buffer *buffer,
 {
 	if (buffer->kmap_cnt || buffer->dmap_cnt || buffer->umap_cnt ||
 		buffer->iommu_map_cnt) {
-		if (buffer->flags != flags) {
+		if ((buffer->flags & ION_FLAG_CACHED) != (flags & ION_FLAG_CACHED)) {
 			pr_err("%s: buffer was already mapped with flags %lx,"
 				" cannot map with flags %lx\n", __func__,
 				buffer->flags, flags);
@@ -123,7 +123,8 @@ static int ion_validate_buffer_flags(struct ion_buffer *buffer,
 		}
 
 	} else {
-		buffer->flags = flags;
+		buffer->flags &= ~ION_FLAG_CACHED;
+		buffer->flags |= flags & ION_FLAG_CACHED;
 	}
 	return 0;
 }
