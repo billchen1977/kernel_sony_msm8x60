@@ -2560,7 +2560,7 @@ int mdp_bus_scale_update_request(u64 ab, u64 ib)
 	mdp_bus_usecases[bus_index].vectors[0].ib = min(ib, mdp_max_bw);
 	mdp_bus_usecases[bus_index].vectors[1].ib = min(ib * 2, mdp_max_bw);
 
-	pr_debug("%s: handle=%d index=%d ab=%u ib=%u\n", __func__,
+	pr_debug("%s: handle=%d index=%d ab=%llu ib=%llu\n", __func__,
 		 (u32)mdp_bus_scale_handle, bus_index,
 		 mdp_bus_usecases[bus_index].vectors->ab,
 		 mdp_bus_usecases[bus_index].vectors->ib);
@@ -2570,7 +2570,7 @@ int mdp_bus_scale_update_request(u64 ab, u64 ib)
 }
 static int mdp_bus_scale_restore_request(void)
 {
-	pr_debug("%s: index=%d ab=%u ib=%u\n", __func__, bus_index,
+	pr_debug("%s: index=%d ab=%llu ib=%llu\n", __func__, bus_index,
 		mdp_bus_usecases[bus_index].vectors->ab,
 		mdp_bus_usecases[bus_index].vectors->ib);
 	return mdp_bus_scale_update_request

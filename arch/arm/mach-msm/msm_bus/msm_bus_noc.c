@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -503,12 +503,12 @@ static void msm_bus_noc_update_bw(struct msm_bus_inode_info *hop,
 	struct msm_bus_inode_info *info,
 	struct msm_bus_fabric_registration *fab_pdata,
 	void *sel_cdata, int *master_tiers,
-	long int add_bw)
+	int64_t add_bw)
 {
 	struct msm_bus_noc_info *ninfo;
 	struct msm_bus_noc_qos_bw qos_bw;
 	int i, ports;
-	long int bw;
+	int64_t bw;
 	struct msm_bus_noc_commit *sel_cd =
 		(struct msm_bus_noc_commit *)sel_cdata;
 
@@ -528,14 +528,14 @@ static void msm_bus_noc_update_bw(struct msm_bus_inode_info *hop,
 
 	bw = INTERLEAVED_BW(fab_pdata, add_bw, ports);
 
-	MSM_BUS_DBG("NOC: Update bw for: %d: %ld\n",
+	MSM_BUS_DBG("NOC: Update bw for: %d: %lld\n",
 		info->node_info->priv_id, add_bw);
 	for (i = 0; i < ports; i++) {
 		sel_cd->mas[info->node_info->masterp[i]].bw += bw;
 		sel_cd->mas[info->node_info->masterp[i]].hw_id =
 			info->node_info->mas_hw_id;
 		qos_bw.bw = sel_cd->mas[info->node_info->masterp[i]].bw;
-		MSM_BUS_DBG("NOC: Update mas_bw for ID: %d, BW: %ld, QoS: %u\n",
+		MSM_BUS_DBG("NOC: Update mas_bw for ID: %d, BW: %llu, QoS: %u\n",
 			info->node_info->priv_id,
 			sel_cd->mas[info->node_info->masterp[i]].bw,
 			qos_bw.ws);
@@ -562,7 +562,7 @@ static void msm_bus_noc_update_bw(struct msm_bus_inode_info *hop,
 		sel_cd->slv[hop->node_info->slavep[i]].bw += bw;
 		sel_cd->slv[hop->node_info->slavep[i]].hw_id =
 			hop->node_info->slv_hw_id;
-		MSM_BUS_DBG("NOC: Update slave_bw for ID: %d -> %ld\n",
+		MSM_BUS_DBG("NOC: Update slave_bw for ID: %d -> %llu\n",
 			hop->node_info->priv_id,
 			sel_cd->slv[hop->node_info->slavep[i]].bw);
 		MSM_BUS_DBG("NOC: Update slave_bw for hw_id: %d, index: %d\n",
