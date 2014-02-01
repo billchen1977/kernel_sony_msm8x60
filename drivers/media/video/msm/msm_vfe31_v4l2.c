@@ -364,6 +364,12 @@ static const char * const vfe31_general_cmd[] = {
 	"DEMOSAICV3_UPDATE",
 };
 
+bool vfe31_get_state(void)
+{
+    return vfe31_ctrl->state == VFE_STATE_STARTED;
+}
+EXPORT_SYMBOL(vfe31_get_state);
+
 static void vfe31_stop(void)
 {
 
@@ -375,6 +381,7 @@ static void vfe31_stop(void)
 	/* for reset hw modules, and send msg when reset_irq comes.*/
 	spin_lock_irqsave(&vfe31_ctrl->stop_flag_lock, flags);
 	vfe31_ctrl->stop_ack_pending = TRUE;
+	vfe31_ctrl->state = VFE_STATE_STOP_REQUESTED;
 	spin_unlock_irqrestore(&vfe31_ctrl->stop_flag_lock, flags);
 
 	/* disable all interrupts.  */
@@ -526,6 +533,7 @@ static void vfe31_reset_internal_variables(void)
 	vfe31_ctrl->update_ack_pending = FALSE;
 	spin_unlock_irqrestore(&vfe31_ctrl->update_ack_lock, flags);
 
+    vfe31_ctrl->state = VFE_STATE_IDLE;
 	vfe31_ctrl->recording_state = VFE_STATE_IDLE;
 	vfe31_ctrl->liveshot_state = VFE_STATE_IDLE;
 
@@ -740,6 +748,7 @@ static void vfe31_start_common(void)
 {
 	uint32_t irq_mask = 0x00E00021;
 	vfe31_ctrl->start_ack_pending = TRUE;
+	vfe31_ctrl->state = VFE_STATE_START_REQUESTED;
 	CDBG("VFE opertaion mode = 0x%x, output mode = 0x%x\n",
 		vfe31_ctrl->operation_mode, vfe31_ctrl->outpath.output_mode);
 	if (vfe31_ctrl->stats_comp)
@@ -2310,6 +2319,7 @@ static void vfe31_process_reg_update_irq(void)
 	if (vfe31_ctrl->start_ack_pending == TRUE) {
 		vfe31_send_isp_msg(vfe31_ctrl, MSG_ID_START_ACK);
 		vfe31_ctrl->start_ack_pending = FALSE;
+		vfe31_ctrl->state = VFE_STATE_STARTED;
 	} else {
 		if (vfe31_ctrl->recording_state ==
 			VFE_STATE_STOP_REQUESTED) {
@@ -2459,6 +2469,7 @@ static void vfe31_process_reset_irq(void)
 	spin_lock_irqsave(&vfe31_ctrl->stop_flag_lock, flags);
 	if (vfe31_ctrl->stop_ack_pending) {
 		vfe31_ctrl->stop_ack_pending = FALSE;
+		vfe31_ctrl->state = VFE_STATE_STOPPED;
 		spin_unlock_irqrestore(&vfe31_ctrl->stop_flag_lock, flags);
 		vfe31_send_isp_msg(vfe31_ctrl, MSG_ID_STOP_ACK);
 	} else {
@@ -2479,6 +2490,7 @@ static void vfe31_process_camif_sof_irq(void)
 		if (vfe31_ctrl->start_ack_pending) {
 			vfe31_send_isp_msg(vfe31_ctrl, MSG_ID_START_ACK);
 			vfe31_ctrl->start_ack_pending = FALSE;
+			vfe31_ctrl->state = VFE_STATE_STARTED;
 		}
 		vfe31_ctrl->vfe_capture_count--;
 		/* if last frame to be captured: */

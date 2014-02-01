@@ -878,6 +878,7 @@ struct vfe31_ctrl_type {
 	int8_t stop_ack_pending;
 	int8_t reset_ack_pending;
 	int8_t update_ack_pending;
+	enum vfe_output_state state;
 	enum vfe_output_state recording_state;
 	int8_t update_linear;
 	int8_t update_rolloff;
