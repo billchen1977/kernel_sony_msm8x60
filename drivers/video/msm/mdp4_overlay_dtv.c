@@ -255,13 +255,22 @@ int mdp4_dtv_pipe_commit(int cndx, int wait)
 			pipe->pipe_used = 0; /* clear */
 		}
 	}
+#ifdef CONFIG_FB_MSM_DTV_USE_VIRTUAL_PIPE
 	mdp4_mixer_stage_commit(mixer);
+#endif
 
 	 /* start timing generator & mmu if they are not started yet */
 	mdp4_overlay_dtv_start();
 
 	pipe = vctrl->base_pipe;
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
+#ifdef CONFIG_FB_MSM_DTV_USE_VIRTUAL_PIPE
+    pipe->src_height = vctrl->mfd->fbi->var.yres;
+	pipe->src_width = vctrl->mfd->fbi->var.xres;
+	mdp4_overlay_dmae_xy(pipe);
+	INIT_COMPLETION(vctrl->dmae_comp);
+	vsync_irq_enable(INTR_DMA_E_DONE, MDP_DMA_E_TERM);
+#else
 	if (pipe->ov_blt_addr) {
 		mdp4_dtv_blt_ov_update(pipe);
 		pipe->blt_ov_done++;
@@ -276,6 +285,7 @@ int mdp4_dtv_pipe_commit(int cndx, int wait)
 		INIT_COMPLETION(vctrl->dmae_comp);
 		vsync_irq_enable(INTR_DMA_E_DONE, MDP_DMA_E_TERM);
 	}
+#endif
 	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
 	mdp4_stat.overlay_commit[pipe->mixer_num]++;
 
@@ -479,7 +489,8 @@ static int mdp4_dtv_start(struct msm_fb_data_type *mfd)
 			outpdw(MDP_BASE + 0x0038, mdp4_display_intf);
 		}
 	}
-	mdp4_overlay_dmae_cfg(mfd, 0);
+	mdp4_overlay_dmae_cfg(mfd, 0, 
+	        vctrl->base_pipe->pipe_type == OVERLAY_TYPE_VIRTUAL);
 
 	/*
 	 * DTV timing setting
@@ -816,18 +827,18 @@ static void mdp4_overlay_dtv_alloc_pipe(struct msm_fb_data_type *mfd,
 	if (ret < 0)
 		pr_warn("%s: format2type failed\n", __func__);
 
+	pipe->srcp0_addr = (uint32) mfd->ibuf.buf;
+
 	mdp4_overlay_dmae_xy(pipe);	/* dma_e */
 	mdp4_overlayproc_cfg(pipe);
 
-	pipe->srcp0_addr = (uint32) mfd->ibuf.buf;
 	if (pipe->pipe_type == OVERLAY_TYPE_RGB)
 		mdp4_overlay_rgb_setup(pipe);
-	else
+	else if (pipe->pipe_type == OVERLAY_TYPE_VIDEO)
 	    mdp4_overlay_vg_setup(pipe);
 
 	mdp4_overlay_reg_flush(pipe, 1);
-	mdp4_mixer_stage_up(pipe, 0);
-	mdp4_mixer_stage_commit(pipe->mixer_num);
+	mdp4_mixer_stage_up(pipe, 1);
 
 	vctrl->base_pipe = pipe; /* keep it */
 }
@@ -848,8 +859,11 @@ int mdp4_overlay_dtv_set(struct msm_fb_data_type *mfd,
 	else if (!hdmi_prim_display && mdp4_overlay_borderfill_supported())
 		mdp4_overlay_dtv_alloc_pipe(mfd, OVERLAY_TYPE_BF, vctrl);
 	else
+#ifdef CONFIG_FB_MSM_DTV_USE_VIRTUAL_PIPE
+		mdp4_overlay_dtv_alloc_pipe(mfd, OVERLAY_TYPE_VIRTUAL, vctrl);
+#else
 		mdp4_overlay_dtv_alloc_pipe(mfd, OVERLAY_TYPE_RGB, vctrl);
-
+#endif
 
 	if (vctrl->base_pipe == NULL)
 		return -ENODEV;
@@ -1001,6 +1015,7 @@ void mdp4_dtv_set_black_screen(void)
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 }
 
+#ifndef CONFIG_FB_MSM_DTV_USE_VIRTUAL_PIPE
 static void mdp4_dtv_do_blt(struct msm_fb_data_type *mfd, int enable)
 {
 	unsigned long flag;
@@ -1062,15 +1077,20 @@ static void mdp4_dtv_do_blt(struct msm_fb_data_type *mfd, int enable)
 
 	atomic_set(&vctrl->suspend, 0);
 }
+#endif
 
 void mdp4_dtv_overlay_blt_start(struct msm_fb_data_type *mfd)
 {
+#ifndef CONFIG_FB_MSM_DTV_USE_VIRTUAL_PIPE
 	mdp4_dtv_do_blt(mfd, 1);
+#endif
 }
 
 void mdp4_dtv_overlay_blt_stop(struct msm_fb_data_type *mfd)
 {
+#ifndef CONFIG_FB_MSM_DTV_USE_VIRTUAL_PIPE
 	mdp4_dtv_do_blt(mfd, 0);
+#endif
 }
 
 void mdp4_dtv_overlay(struct msm_fb_data_type *mfd)

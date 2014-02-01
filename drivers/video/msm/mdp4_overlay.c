@@ -100,6 +100,11 @@ struct mdp4_overlay_ctrl {
 			.pipe_ndx = 7,
 			.mixer_num = MDP4_MIXER2,
 		},
+		{
+			.pipe_type = OVERLAY_TYPE_VIRTUAL,
+			.pipe_num = OVERLAY_PIPE_VIRTUAL,
+			.pipe_ndx = 8,
+		},
 	},
 };
 
@@ -427,7 +432,7 @@ int mdp4_overlay_borderfill_supported(void)
 	return (mdp_rev >= MDP_REV_42);
 }
 
-void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv)
+void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv, int fbmode)
 {
 	uint32	dmae_cfg_reg;
 
@@ -441,6 +446,10 @@ void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv)
 	else
 		dmae_cfg_reg |= DMA_PACK_PATTERN_RGB;
 
+    if (fbmode) {
+        if ((mfd->fb_imgType == MDP_RGB_565) || (mfd->fb_imgType == MDP_BGR_565))
+		    dmae_cfg_reg |= DMA_BUF_FORMAT_RGB565;
+    }
 
 	if (mfd->panel_info.bpp == 18) {
 		dmae_cfg_reg |= DMA_DSTC0G_6BITS |	/* 666 18BPP */
@@ -503,12 +512,11 @@ void fill_black_screen(bool on, uint8 pipe_num, uint8 mixer_num)
 
 void mdp4_overlay_dmae_xy(struct mdp4_overlay_pipe *pipe)
 {
-
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 
 	MDP_OUTP(MDP_BASE + 0xb0004,
 			(pipe->src_height << 16 | pipe->src_width));
-	if (pipe->dma_blt_addr) {
+	if (pipe->dma_blt_addr && pipe->pipe_type != OVERLAY_TYPE_VIRTUAL) {
 		uint32 off, bpp;
 #ifdef BLT_RGB565
 		bpp = 2; /* overlay ouput is RGB565 */
@@ -527,7 +535,10 @@ void mdp4_overlay_dmae_xy(struct mdp4_overlay_pipe *pipe)
 		MDP_OUTP(MDP_BASE + 0xb000c, pipe->srcp0_ystride);
 	}
 	/* dma_e dest */
-	MDP_OUTP(MDP_BASE + 0xb0010, (pipe->dst_y << 16 | pipe->dst_x));
+	if (pipe->pipe_type == OVERLAY_TYPE_VIRTUAL)
+	    MDP_OUTP(MDP_BASE + 0xb0010, 0);
+	else
+	    MDP_OUTP(MDP_BASE + 0xb0010, (pipe->dst_y << 16 | pipe->dst_x));
 
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 }
@@ -1535,7 +1546,27 @@ void mdp4_overlayproc_cfg(struct mdp4_overlay_pipe *pipe)
 	/*
 	 * BLT support both primary and external external
 	 */
-	if (pipe->ov_blt_addr) {
+	if (pipe->pipe_type == OVERLAY_TYPE_VIRTUAL) {
+		data = pipe->src_height;
+		data <<= 16;
+		data |= pipe->src_width;
+		outpdw(overlay_base + 0x0008, data); /* ROI, height + width */
+
+		outpdw(overlay_base + 0x000c, pipe->srcp0_addr);
+		/* overlay ouput is RGB888 */
+		outpdw(overlay_base + 0x0010, pipe->srcp0_ystride);
+		outpdw(overlay_base + 0x001c, pipe->srcp0_addr);
+		/* MDDI - BLT + on demand */
+		outpdw(overlay_base + 0x0004, 0x08);
+
+		curr = inpdw(overlay_base + 0x0014);
+		curr &= 0x4;
+#ifdef BLT_RGB565
+		outpdw(overlay_base + 0x0014, curr | 0x1); /* RGB565 */
+#else
+		outpdw(overlay_base + 0x0014, curr | 0x0); /* RGB888 */
+#endif
+	} else if (pipe->ov_blt_addr) {
 		int off, bpp;
 #ifdef BLT_RGB565
 		bpp = 2;  /* overlay ouput is RGB565 */
@@ -1787,6 +1818,9 @@ void mdp4_mixer_stage_up(struct mdp4_overlay_pipe *pipe, int commit)
 	struct mdp4_overlay_pipe *pp;
 	int i, mixer;
 
+    if (pipe->pipe_type == OVERLAY_TYPE_VIRTUAL)
+        return;
+
 	mixer = pipe->mixer_num;
 
 	for (i = MDP4_MIXER_STAGE_BASE; i < MDP4_MIXER_STAGE_MAX; i++) {
@@ -1807,6 +1841,9 @@ void mdp4_mixer_stage_down(struct mdp4_overlay_pipe *pipe, int commit)
 {
 	struct mdp4_overlay_pipe *pp;
 	int i, mixer;
+
+    if (pipe->pipe_type == OVERLAY_TYPE_VIRTUAL)
+        return;
 
 	mixer = pipe->mixer_num;
 
@@ -2282,6 +2319,9 @@ void mdp4_overlay_reg_flush(struct mdp4_overlay_pipe *pipe, int all)
 	int mixer;
 	uint32 *reg;
 
+    if (pipe->pipe_type == OVERLAY_TYPE_VIRTUAL)
+        return;
+
 	mixer = pipe->mixer_num;
 	reg = &ctrl->flush[mixer];
 	*reg |= (1 << (2 + pipe->pipe_num));
@@ -2575,10 +2615,15 @@ static int mdp4_overlay_req2pipe(struct mdp_overlay *req, int mixer,
 	if (req->flags & MDP_OV_PIPE_SHARE)
 		ptype = OVERLAY_TYPE_VIDEO; /* VG pipe supports both RGB+YUV */
 
-	if (req->id == MSMFB_NEW_REQUEST)  /* new request */
+	if (req->id == MSMFB_NEW_REQUEST) { /* new request */
+#ifdef CONFIG_FB_MSM_DTV_USE_VIRTUAL_PIPE
+	    if (mfd->panel_info.type == DTV_PANEL)
+	        return -EINVAL;
+#endif
 		pipe = mdp4_overlay_pipe_alloc(ptype, mixer);
-	else
+	} else {
 		pipe = mdp4_overlay_ndx2pipe(req->id);
+	}
 
 	if (pipe == NULL) {
 		pr_err("%s: pipe == NULL!\n", __func__);
@@ -3397,6 +3442,11 @@ int mdp4_overlay_unset(struct fb_info *info, int ndx)
 		mutex_unlock(&mfd->dma->ov_mutex);
 		return 0;
 	}
+	
+	if (pipe->pipe_type == OVERLAY_TYPE_VIRTUAL) {
+		mutex_unlock(&mfd->dma->ov_mutex);
+	    return 0;
+	}
 
 	if (pipe->mixer_num == MDP4_MIXER2)
 		ctrl->mixer2_played = 0;
@@ -3537,6 +3587,9 @@ void mdp4_overlay_dma_commit(int mixer)
  */
 void mdp4_overlay_vsync_commit(struct mdp4_overlay_pipe *pipe)
 {
+    if (pipe->pipe_type == OVERLAY_TYPE_VIRTUAL)
+        return;
+
 	if (pipe->pipe_type == OVERLAY_TYPE_VIDEO)
 		mdp4_overlay_vg_setup(pipe);	/* video/graphic pipe */
 	else
