@@ -2984,6 +2984,8 @@ int mdp4_calc_blt_mdp_bw(struct msm_fb_data_type *mfd,
 	return 0;
 }
 
+extern bool vfe31_get_state(void);
+
 int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 {
 	u32 worst_mdp_clk = 0;
@@ -3039,6 +3041,9 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 			    (mfd->panel_info.type != DTV_PANEL)) {
 				perf_req->use_ov_blt[MDP4_MIXER0] = 1;
 			}
+	        if (vfe31_get_state()) {
+	            perf_req->use_ov_blt[MDP4_MIXER0] = 1;
+            }
 		}
 	}
 
