@@ -1535,11 +1535,11 @@ void msm_hs_request_clock_on_locked(struct uart_port *uport)
 	case MSM_HS_CLK_OFF:
 		wake_lock(&msm_uport->dma_wake_lock);
 		spin_unlock_irqrestore(&uport->lock, serial_flags);
-		clk_enable(msm_uport->clk);
+		clk_prepare_enable(msm_uport->clk);
 		spin_lock_irqsave(&uport->lock, serial_flags);
 		if (msm_uport->pclk) {
 			spin_unlock_irqrestore(&uport->lock, serial_flags);
-			ret = clk_enable(msm_uport->pclk);
+			ret = clk_prepare_enable(msm_uport->pclk);
 			spin_lock_irqsave(&uport->lock, serial_flags);
 		}
 		disable_irq_nosync(msm_uport->wakeup.irq);
