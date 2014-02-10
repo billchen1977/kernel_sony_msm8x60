@@ -1283,17 +1283,17 @@ static const char * const voice_rx[] = {
     "speaker", 
     "headset", 
     "bt-sco-headset", 
-    "tty-headset",
+    "voice-tty-headset",
 };
 static const char * const voice_tx[] = {
     "handset-mic", 
     "speaker-mic", 
     "headset-mic", 
-    "bt-sco-headset-mic", 
-    "tty-headset-mic",
+    "bt-sco-mic", 
+    "voice-tty-headset-mic",
 };
-static int voice_rx_dev_id[] = { 0, 2, 6, 8, };
-static int voice_tx_dev_id[] = { 1, 5, 4, 7, };
+static int voice_rx_dev_id[] = { 0, 2, 6, 29, 8, };
+static int voice_tx_dev_id[] = { 1, 5, 4, 30, 7, };
 
 static int msm_voice_get_rx(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
