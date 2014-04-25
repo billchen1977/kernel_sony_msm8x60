@@ -141,6 +141,12 @@ static struct resource msm_mi2s_gpio_resources[] = {
 		.flags  = IORESOURCE_IO,
 	},
 	{
+		.name   = "mi2s_mclk",
+		.start  = 103,
+		.end    = 103,
+		.flags  = IORESOURCE_IO,
+	},
+	{
 		.name   = "fm_mi2s_sd",
 		.start  = 107,
 		.end    = 107,
