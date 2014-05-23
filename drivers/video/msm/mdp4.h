@@ -145,15 +145,13 @@ enum {
 	OVERLAY_PIPE_RGB3,
 	OVERLAY_PIPE_VG3,
 	OVERLAY_PIPE_VG4,
-	OVERLAY_PIPE_VIRTUAL,
 	OVERLAY_PIPE_MAX
 };
 
 enum {
 	OVERLAY_TYPE_RGB,
 	OVERLAY_TYPE_VIDEO,
-	OVERLAY_TYPE_BF,
-	OVERLAY_TYPE_VIRTUAL
+	OVERLAY_TYPE_BF
 };
 
 enum {
@@ -619,7 +617,7 @@ void mdp4_dtv_pipe_queue(int cndx, struct mdp4_overlay_pipe *pipe);
 void mdp4_overlay_pipe_free(struct mdp4_overlay_pipe *pipe);
 void mdp4_overlay_dmap_cfg(struct msm_fb_data_type *mfd, int lcdc);
 void mdp4_overlay_dmap_xy(struct mdp4_overlay_pipe *pipe);
-void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv, int fbmode);
+void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv);
 void mdp4_overlay_dmae_xy(struct mdp4_overlay_pipe *pipe);
 int mdp4_overlay_pipe_staged(struct mdp4_overlay_pipe *pipe);
 void mdp4_lcdc_primary_vsyn(void);

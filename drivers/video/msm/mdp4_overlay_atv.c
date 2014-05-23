@@ -114,7 +114,7 @@ int mdp4_atv_on(struct platform_device *pdev)
 	pipe->srcp0_ystride = fbi->fix.line_length;
 
 	mdp4_overlay_dmae_xy(pipe);	/* dma_e */
-	mdp4_overlay_dmae_cfg(mfd, 1, 0);
+	mdp4_overlay_dmae_cfg(mfd, 1);
 
 	if (pipe->pipe_type == OVERLAY_TYPE_RGB)
 		mdp4_overlay_rgb_setup(pipe);
