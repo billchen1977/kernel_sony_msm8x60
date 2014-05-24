@@ -769,13 +769,17 @@ static void mdp4_overlay_dtv_alloc_pipe(struct msm_fb_data_type *mfd,
 	pipe->mixer_num = MDP4_MIXER1;
 
 	if (ptype == OVERLAY_TYPE_BF) {
-		/* LSP_BORDER_COLOR */
-		MDP_OUTP(MDP_BASE + MDP4_OVERLAYPROC1_BASE + 0x5004,
-			((0x0 & 0xFFF) << 16) |	/* 12-bit B */
-			(0x0 & 0xFFF));		/* 12-bit G */
-		/* MSP_BORDER_COLOR */
-		MDP_OUTP(MDP_BASE + MDP4_OVERLAYPROC1_BASE + 0x5008,
-			(0x0 & 0xFFF));		/* 12-bit R */
+		if (mdp_rev >= MDP_REV_42) {
+			/* LSP_BORDER_COLOR */
+			MDP_OUTP(MDP_BASE + MDP4_OVERLAYPROC1_BASE + 0x5004,
+				((0x0 & 0xFFF) << 16) |	/* 12-bit B */
+				(0x0 & 0xFFF));		/* 12-bit G */
+			/* MSP_BORDER_COLOR */
+			MDP_OUTP(MDP_BASE + MDP4_OVERLAYPROC1_BASE + 0x5008,
+				(0x0 & 0xFFF));		/* 12-bit R */
+		} else {
+			pipe->mixer_stage = MDP4_MIXER_STAGE_UNUNSED;
+		}
 		pipe->src_format = MDP_ARGB_8888;
 	} else {
 		switch (mfd->ibuf.bpp) {
@@ -822,7 +826,7 @@ static void mdp4_overlay_dtv_alloc_pipe(struct msm_fb_data_type *mfd,
 	pipe->srcp0_addr = (uint32) mfd->ibuf.buf;
 	if (pipe->pipe_type == OVERLAY_TYPE_RGB)
 		mdp4_overlay_rgb_setup(pipe);
-	else
+	else if (pipe->pipe_type == OVERLAY_TYPE_VIDEO)
 	    mdp4_overlay_vg_setup(pipe);
 
 	mdp4_overlay_reg_flush(pipe, 1);

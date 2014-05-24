@@ -440,6 +440,10 @@ static int msm_fb_probe(struct platform_device *pdev)
 #endif
 
 	bf_supported = mdp4_overlay_borderfill_supported();
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+    if (mdp_rev == MDP_REV_41)
+        bf_supported = FALSE;
+#endif
 
 	rc = msm_fb_register(mfd);
 	if (rc)

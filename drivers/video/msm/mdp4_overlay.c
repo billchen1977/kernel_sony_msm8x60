@@ -424,7 +424,11 @@ uint32 mdp4_overlay_panel_list(void)
 
 int mdp4_overlay_borderfill_supported(void)
 {
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+    return (mdp_rev >= MDP_REV_41);
+#else
 	return (mdp_rev >= MDP_REV_42);
+#endif
 }
 
 void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv)
@@ -1662,6 +1666,11 @@ int mdp4_mixer_info(int mixer_num, struct mdp_mixer_info *info)
 		if (!pipe->pipe_used)
 			continue;
 
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+    	if ((mdp_rev == MDP_REV_41) && (pipe->pipe_type == OVERLAY_TYPE_BF))
+        	continue;
+#endif
+
 		info->z_order = pipe->mixer_stage - MDP4_MIXER_STAGE0;
 		/* z_order == -1, means base layer */
 		info->ptype = pipe->pipe_type;
@@ -1789,7 +1798,7 @@ void mdp4_mixer_stage_up(struct mdp4_overlay_pipe *pipe, int commit)
 
 	mixer = pipe->mixer_num;
 
-	for (i = MDP4_MIXER_STAGE_BASE; i < MDP4_MIXER_STAGE_MAX; i++) {
+	for (i = MDP4_MIXER_STAGE_UNUNSED; i < MDP4_MIXER_STAGE_MAX; i++) {
 		pp = ctrl->stage[mixer][i];
 		if (pp && pp->pipe_ndx == pipe->pipe_ndx) {
 			ctrl->stage[mixer][i] = NULL;
@@ -1810,7 +1819,7 @@ void mdp4_mixer_stage_down(struct mdp4_overlay_pipe *pipe, int commit)
 
 	mixer = pipe->mixer_num;
 
-	for (i = MDP4_MIXER_STAGE_BASE; i < MDP4_MIXER_STAGE_MAX; i++) {
+	for (i = MDP4_MIXER_STAGE_UNUNSED; i < MDP4_MIXER_STAGE_MAX; i++) {
 		pp = ctrl->stage[mixer][i];
 		if (pp && pp->pipe_ndx == pipe->pipe_ndx)
 			ctrl->stage[mixer][i] = NULL;  /* clear it */
@@ -1867,6 +1876,11 @@ void mdp4_overlay_borderfill_stage_up(struct mdp4_overlay_pipe *pipe)
 	pipe->alpha = alpha;
 	pipe->iommu = iom;
 
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+    if (mdp_rev == MDP_REV_41)
+        pipe->mixer_stage = MDP4_MIXER_STAGE_UNUNSED;
+#endif
+
 	/* free original base layer pipe to be sued as normal pipe */
 	bspipe->pipe_used = 0;
 
@@ -1882,7 +1896,11 @@ void mdp4_overlay_borderfill_stage_up(struct mdp4_overlay_pipe *pipe)
 #endif
 
 	mdp4_overlay_reg_flush(bspipe, 1);
+	mdp4_mixer_stage_down(bspipe, 0);
+	mdp4_overlay_pipe_free(bspipe);
+
 	/* borderfill pipe as base layer */
+	mdp4_overlay_reg_flush(pipe, 1);
 	mdp4_mixer_stage_up(pipe, 0);
 }
 
@@ -2282,6 +2300,11 @@ void mdp4_overlay_reg_flush(struct mdp4_overlay_pipe *pipe, int all)
 	int mixer;
 	uint32 *reg;
 
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+    if ((mdp_rev == MDP_REV_41) && (pipe->pipe_type == OVERLAY_TYPE_BF))
+        return;
+#endif
+
 	mixer = pipe->mixer_num;
 	reg = &ctrl->flush[mixer];
 	*reg |= (1 << (2 + pipe->pipe_num));
@@ -2418,7 +2441,7 @@ static int mdp4_overlay_req2pipe(struct mdp_overlay *req, int mixer,
 		return -ERANGE;
 	}
 
-	if (req->z_order < 0 || req->z_order > 3) {
+	if ((int)req->z_order < -1 || (int)req->z_order > 3) {
 		pr_err("%s: z_order=%d out of range!\n", __func__,
 				req->z_order);
 		mdp4_stat.err_zorder++;
@@ -2543,6 +2566,21 @@ static int mdp4_overlay_req2pipe(struct mdp_overlay *req, int mixer,
 			}
 		}
 	}
+
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+	if (ctrl->stage[mixer][MDP4_MIXER_STAGE_UNUNSED] != NULL) {
+	    if (req->z_order == -1) {
+            if ((req->dst_rect.x != 0) || 
+                (req->dst_rect.w != mfd->fbi->var.xres) || 
+                (req->dst_rect.y != 0) || 
+                (req->dst_rect.h != mfd->fbi->var.yres)) {
+                mdp4_stat.err_scale++;
+                pr_err("%s: base pipe need match screen!\n", __func__);
+				return -ERANGE;
+            }
+        }
+	}
+#endif
 
 	if (((req->src_rect.x + req->src_rect.w) > req->src.width) ||
 		((req->src_rect.y + req->src_rect.h) > req->src.height)) {
@@ -2859,6 +2897,14 @@ static int mdp4_calc_pipe_mdp_bw(struct msm_fb_data_type *mfd,
 		pr_err("%s: mfd is null!\n", __func__);
 		return ret;
 	}
+
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+    if ((mdp_rev == MDP_REV_41) && (pipe->pipe_type == OVERLAY_TYPE_BF)) {
+	    pipe->bw_ab_quota = 0;
+	    pipe->bw_ib_quota = 0;
+        return 0;
+	}
+#endif
 
 	fps = mdp_get_panel_framerate(mfd);
 	quota = pipe->src_w * pipe->src_h * fps * pipe->bpp;
@@ -3375,6 +3421,18 @@ int mdp4_overlay_unset_mixer(int mixer)
 		mdp4_overlay_pipe_free(pipe);
 		cnt++;
 	}
+#ifdef CONFIG_FB_MSM_MDP41_VIRTUAL_BF_PIPE
+    if (ctrl->stage[mixer][MDP4_MIXER_STAGE_UNUNSED] != NULL) {
+        pipe = ctrl->stage[mixer][MDP4_MIXER_STAGE_BASE];
+	    if (pipe != NULL) {
+	    	pipe->flags &= ~MDP_OV_PLAY_NOWAIT;
+	    	mdp4_overlay_reg_flush(pipe, 1);
+	    	mdp4_mixer_stage_down(pipe, 1);
+	    	mdp4_overlay_pipe_free(pipe);
+	    	cnt++;
+	    }
+    }
+#endif
 
 	return cnt;
 }
