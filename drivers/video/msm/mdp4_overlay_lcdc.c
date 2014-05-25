@@ -802,9 +802,8 @@ static void mdp4_lcdc_blt_ov_update(struct mdp4_overlay_pipe *pipe)
 #else
 	bpp = 3; /* overlay ouput is RGB888 */
 #endif
-	off = 0;
-	if (pipe->ov_cnt & 0x01)
-		off = pipe->src_height * pipe->src_width * bpp;
+	off = (pipe->ov_cnt % 3) *
+			pipe->src_height * pipe->src_width * bpp;
 	addr = pipe->ov_blt_addr + off;
 
 	/* overlay 0 */
@@ -826,9 +825,8 @@ static void mdp4_lcdc_blt_dmap_update(struct mdp4_overlay_pipe *pipe)
 #else
 	bpp = 3; /* overlay ouput is RGB888 */
 #endif
-	off = 0;
-	if (pipe->dmap_cnt & 0x01)
-		off = pipe->src_height * pipe->src_width * bpp;
+	off = (pipe->dmap_cnt % 3) *
+			pipe->src_height * pipe->src_width * bpp;
 	addr = pipe->dma_blt_addr + off;
 
 	/* dmap */

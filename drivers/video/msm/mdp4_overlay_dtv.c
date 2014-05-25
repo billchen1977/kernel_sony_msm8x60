@@ -763,9 +763,8 @@ static void mdp4_dtv_blt_ov_update(struct mdp4_overlay_pipe *pipe)
 #else
 	bpp = 3; /* overlay ouput is RGB888 */
 #endif
-	off = 0;
-	if (pipe->blt_ov_done & 0x01)
-		off = pipe->src_height * pipe->src_width * bpp;
+	off = (pipe->ov_cnt % 3) *
+			pipe->src_height * pipe->src_width * bpp;
 	addr = pipe->ov_blt_addr + off;
 
 	/* overlay 1 */
@@ -787,9 +786,8 @@ static void mdp4_dtv_blt_dmae_update(struct mdp4_overlay_pipe *pipe)
 #else
 	bpp = 3; /* overlay ouput is RGB888 */
 #endif
-	off = 0;
-	if (pipe->blt_dmap_done & 0x01)
-		off = pipe->src_height * pipe->src_width * bpp;
+	off = (pipe->dmap_cnt % 3) *
+			pipe->src_height * pipe->src_width * bpp;
 	addr = pipe->dma_blt_addr + off;
 
 	/* dmae */

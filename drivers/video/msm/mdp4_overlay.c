@@ -519,9 +519,8 @@ void mdp4_overlay_dmae_xy(struct mdp4_overlay_pipe *pipe)
 #else
 		bpp = 3; /* overlay ouput is RGB888 */
 #endif
-		off = 0;
-		if (pipe->ov_cnt & 0x01)
-			off = pipe->src_height * pipe->src_width * bpp;
+		off = (pipe->dmap_cnt % 3) *
+				pipe->src_height * pipe->src_width * bpp;
 		MDP_OUTP(MDP_BASE + 0xb0008, pipe->dma_blt_addr + off);
 		/* RGB888, output of overlay blending */
 		MDP_OUTP(MDP_BASE + 0xb000c, pipe->src_width * bpp);
@@ -601,9 +600,8 @@ void mdp4_overlay_dmap_xy(struct mdp4_overlay_pipe *pipe)
 #else
 		bpp = 3; /* overlay ouput is RGB888 */
 #endif
-		off = 0;
-		if (pipe->dmap_cnt & 0x01)
-			off = pipe->src_height * pipe->src_width * bpp;
+		off = (pipe->dmap_cnt % 3) *
+				pipe->src_height * pipe->src_width * bpp;
 		ctrl->dmap_cfg[2] = pipe->dma_blt_addr + off;
 		MDP_OUTP(MDP_BASE + 0x90008, pipe->dma_blt_addr + off);
 		/* RGB888, output of overlay blending */
@@ -1552,9 +1550,8 @@ void mdp4_overlayproc_cfg(struct mdp4_overlay_pipe *pipe)
 		outpdw(overlay_base + 0x0008, data); /* ROI, height + width */
 		if (pipe->mixer_num == MDP4_MIXER0 ||
 		    pipe->mixer_num == MDP4_MIXER1) {
-			off = 0;
-			if (pipe->ov_cnt & 0x01)
-				off = pipe->src_height * pipe->src_width * bpp;
+		    off = (pipe->ov_cnt % 3) *
+					pipe->src_height * pipe->src_width * bpp;
 
 			outpdw(overlay_base + 0x000c, pipe->ov_blt_addr + off);
 			/* overlay ouput is RGB888 */
@@ -1572,11 +1569,9 @@ void mdp4_overlayproc_cfg(struct mdp4_overlay_pipe *pipe)
 #endif
 		} else if (pipe->mixer_num == MDP4_MIXER2) {
 			if (ctrl->panel_mode & MDP4_PANEL_WRITEBACK) {
-				off = 0;
 				bpp = 1;
-				if (pipe->ov_cnt & 0x01)
-					off = pipe->src_height *
-							pipe->src_width * bpp;
+		    	off = (pipe->ov_cnt % 3) *
+						pipe->src_height * pipe->src_width * bpp;
 
 				outpdw(overlay_base + 0x000c,
 						pipe->ov_blt_addr + off);
