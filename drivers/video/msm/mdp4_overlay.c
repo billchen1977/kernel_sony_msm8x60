@@ -3006,6 +3006,13 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 
 	for (i = 0; i < MDP4_MIXER_MAX; i++)
 		perf_req->use_ov_blt[i] = 0;
+#ifdef CONFIG_FB_MSM_MDP41_BLT_MODE
+    if (mdp_rev == MDP_REV_41) {
+	    perf_req->use_ov_blt[0] = 1;
+		if (mdp4_extn_disp)
+			perf_req->use_ov_blt[1] = 1;
+	}
+#endif
 
 	for (i = 0; i < OVERLAY_PIPE_MAX; i++, pipe++) {
 
@@ -3029,6 +3036,7 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 			ib_quota_total += pipe->bw_ib_quota;
 		}
 
+#ifndef CONFIG_FB_MSM_MDP41_BLT_MODE
 		if (mfd->mdp_rev == MDP_REV_41) {
 			/*
 			 * writeback (blt) mode to provide work around
@@ -3046,6 +3054,7 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 	            perf_req->use_ov_blt[MDP4_MIXER0] = 1;
             }
 		}
+#endif
 	}
 
 	perf_req->mdp_clk_rate = min(worst_mdp_clk, mdp_max_clk);
@@ -3160,6 +3169,17 @@ void mdp4_overlay_mdp_perf_upd(struct msm_fb_data_type *mfd,
 				perf_req->use_ov_blt[0]);
 			perf_cur->use_ov_blt[0] = perf_req->use_ov_blt[0];
 		}
+		if ((mfd->panel_info.pdest == DISPLAY_2 &&
+		     perf_req->use_ov_blt[1] && !perf_cur->use_ov_blt[1])) {
+			if (mfd->panel_info.type == DTV_PANEL)
+				mdp4_dtv_overlay_blt_start(mfd);
+			pr_info("%s mixer1 start blt [%d] from %d to %d.\n",
+				__func__,
+				flag,
+				perf_cur->use_ov_blt[1],
+				perf_req->use_ov_blt[1]);
+			perf_cur->use_ov_blt[1] = perf_req->use_ov_blt[1];
+		}
 	} else {
 		if (perf_req->mdp_clk_rate < perf_cur->mdp_clk_rate) {
 			pr_info("%s mdp clk is changed [%d] from %d to %d\n",
@@ -3204,6 +3224,17 @@ void mdp4_overlay_mdp_perf_upd(struct msm_fb_data_type *mfd,
 				perf_cur->use_ov_blt[0],
 				perf_req->use_ov_blt[0]);
 			perf_cur->use_ov_blt[0] = perf_req->use_ov_blt[0];
+		}
+		if ((mfd->panel_info.pdest == DISPLAY_2 &&
+		     !perf_req->use_ov_blt[1] && perf_cur->use_ov_blt[1])) {
+			if (mfd->panel_info.type == DTV_PANEL)
+				mdp4_dtv_overlay_blt_stop(mfd);
+			pr_info("%s mixer1 stop blt [%d] from %d to %d.\n",
+				__func__,
+				flag,
+				perf_cur->use_ov_blt[1],
+				perf_req->use_ov_blt[1]);
+			perf_cur->use_ov_blt[1] = perf_req->use_ov_blt[1];
 		}
 	}
 	return;
