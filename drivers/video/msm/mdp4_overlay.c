@@ -1683,6 +1683,11 @@ int mdp4_mixer_info(int mixer_num, struct mdp_mixer_info *info)
 	return cnt;
 }
 
+int mdp4_mixer_staged(int mixer)
+{
+	return ctrl->mixer_cfg[mixer];
+}
+
 void mdp4_mixer_reset(int mixer)
 {
 	uint32 data, data1, mask;
