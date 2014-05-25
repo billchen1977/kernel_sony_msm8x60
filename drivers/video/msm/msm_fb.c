@@ -138,6 +138,8 @@ static ssize_t msm_fb_read(struct fb_info *info, char __user *buf,
         WAIT_FENCE_FINAL_TIMEOUT) * MDP_MAX_FENCE_FD
 #define MAX_TIMELINE_NAME_LEN 16
 
+#define MAX_WQ_NAME_LEN 32
+
 int msm_fb_debugfs_file_index;
 struct dentry *msm_fb_debugfs_root;
 struct dentry *msm_fb_debugfs_file[MSM_FB_MAX_DBGFS];
@@ -527,6 +529,9 @@ static int msm_fb_remove(struct platform_device *pdev)
 		del_timer(&mfd->msmfb_no_update_notify_timer);
 	complete(&mfd->msmfb_no_update_notify);
 	complete(&mfd->msmfb_update_notify);
+	
+	if (mfd->commit_wq)
+		destroy_workqueue(mfd->commit_wq);
 
 	/* remove /dev/fb* */
 	unregister_framebuffer(mfd->fbi);
@@ -1508,6 +1513,12 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	init_completion(&mfd->commit_comp);
 	mutex_init(&mfd->sync_mutex);
 	INIT_WORK(&mfd->commit_work, msm_fb_commit_wq_handler);
+	{
+		char wq_name[MAX_WQ_NAME_LEN];
+		snprintf(wq_name, sizeof(wq_name),
+			"msmfb_commit_wq_%d", mfd->index);
+		mfd->commit_wq = create_singlethread_workqueue(wq_name);
+	}
 	mfd->msm_fb_backup = kzalloc(sizeof(struct msm_fb_backup_type),
 		GFP_KERNEL);
 	if (mfd->msm_fb_backup == 0) {
@@ -1964,7 +1975,7 @@ static int msm_fb_pan_display_ex(struct fb_info *info,
 		sizeof(struct mdp_display_commit));
 	mfd->is_committing = 1;
 	INIT_COMPLETION(mfd->commit_comp);
-	schedule_work(&mfd->commit_work);
+	queue_work(mfd->commit_wq, &mfd->commit_work);
 	mutex_unlock(&mfd->sync_mutex);
 	if (wait_for_finish)
 		msm_fb_pan_idle(mfd);
