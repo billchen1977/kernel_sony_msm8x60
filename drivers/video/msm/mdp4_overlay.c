@@ -313,7 +313,7 @@ int mdp4_overlay_iommu_map_buf(int mem_id,
 
 	*srcp_ihdl = ion_import_dma_buf(display_iclient, mem_id);
 	if (IS_ERR_OR_NULL(*srcp_ihdl)) {
-		pr_err("ion_import_dma_buf() failed\n");
+		pr_debug("ion_import_dma_buf() failed\n");
 		return PTR_ERR(*srcp_ihdl);
 	}
 	pr_debug("%s(): ion_hdl %p, ion_buf %d\n", __func__, *srcp_ihdl, mem_id);
@@ -764,6 +764,9 @@ void mdp4_overlay_rgb_setup(struct mdp4_overlay_pipe *pipe)
 	format = mdp4_overlay_format(pipe);
 	pattern = mdp4_overlay_unpack_pattern(pipe);
 
+    if (pipe->srcp0_addr == 0)
+        format |= MDP4_FORMAT_SOLID_FILL;
+
 #ifdef MDP4_IGC_LUT_ENABLE
 	pipe->op_mode |= MDP4_OP_IGC_LUT_EN;
 #endif
@@ -911,6 +914,9 @@ void mdp4_overlay_vg_setup(struct mdp4_overlay_pipe *pipe)
 	format = mdp4_overlay_format(pipe);
 	pattern = mdp4_overlay_unpack_pattern(pipe);
 
+    if (pipe->srcp0_addr == 0)
+        format |= MDP4_FORMAT_SOLID_FILL;
+
 	/* CSC Post Processing enabled? */
 	if (pipe->flags & MDP_OVERLAY_PP_CFG_EN) {
 		if (pipe->pp_cfg.config_ops & MDP_OVERLAY_PP_CSC_CFG) {
@@ -1013,6 +1019,7 @@ void mdp4_overlay_vg_setup(struct mdp4_overlay_pipe *pipe)
 		op_mode &= ~(MDP4_OP_FLIP_LR + MDP4_OP_SCALEX_EN);
 		op_mode &= ~(MDP4_OP_FLIP_UD + MDP4_OP_SCALEY_EN);
 		outpdw(vg_base + 0x0058, op_mode);/* MDP_RGB_OP_MODE */
+		outpdw(vg_base + 0x1008, 0x0);/* Black */
 	} else
 		outpdw(vg_base + 0x0058, pipe->op_mode);/* MDP_RGB_OP_MODE */
 	outpdw(vg_base + 0x005c, pipe->phasex_step);
@@ -3678,12 +3685,10 @@ int mdp4_overlay_play(struct fb_info *info, struct msmfb_overlay_data *req)
 	get_img(img, info, pipe, 0, &start, &len, &pipe->srcp0_file,
 		&pipe->put0_need, &srcp0_ihdl);
 	if (len == 0) {
-		pr_err("%s: pmem Error\n", __func__);
-		ret = -1;
-		goto end;
+		addr = 0;
+	} else {
+	    addr = start + img->offset;
 	}
-
-	addr = start + img->offset;
 	pipe->srcp0_addr = addr;
 	pipe->srcp0_ystride = pipe->src_width * pipe->bpp;
 
