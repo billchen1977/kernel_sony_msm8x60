@@ -2558,7 +2558,7 @@ int mdp_bus_scale_update_request(u64 ab, u64 ib)
 	mdp_bus_usecases[bus_index].vectors[1].ab = min(ab, mdp_max_bw);
 	ib = max(ib, ab);
 	mdp_bus_usecases[bus_index].vectors[0].ib = min(ib, mdp_max_bw);
-	mdp_bus_usecases[bus_index].vectors[1].ib = min(ib * 2, mdp_max_bw);
+	mdp_bus_usecases[bus_index].vectors[1].ib = min(ib * 5 / 2, mdp_max_bw);
 
 	pr_debug("%s: handle=%d index=%d ab=%llu ib=%llu\n", __func__,
 		 (u32)mdp_bus_scale_handle, bus_index,
