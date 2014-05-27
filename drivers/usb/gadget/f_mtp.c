@@ -57,10 +57,6 @@
 #define RX_REQ_MAX 2
 #define INTR_REQ_MAX 5
 
-/* vendor code */
-#define MSOS_VENDOR_CODE	0x08
-#define MSOS_GOOGLE_VENDOR_CODE	0x01
-
 /* ID for Microsoft MTP OS String */
 #define MTP_OS_STRING_ID   0xEE
 
@@ -73,6 +69,9 @@
 /* constants for device status */
 #define MTP_RESPONSE_OK             0x2001
 #define MTP_RESPONSE_DEVICE_BUSY    0x2019
+
+unsigned int mtp_rx_req_len = MTP_BULK_BUFFER_SIZE;
+module_param(mtp_rx_req_len, uint, S_IRUGO | S_IWUSR);
 
 static const char mtp_shortname[] = "mtp_usb";
 
@@ -230,7 +229,7 @@ static u8 mtp_os_string[] = {
 	/* Signature field: "MSFT100" */
 	'M', 0, 'S', 0, 'F', 0, 'T', 0, '1', 0, '0', 0, '0', 0,
 	/* vendor code */
-	MSOS_GOOGLE_VENDOR_CODE,
+	1,
 	/* padding */
 	0
 };
@@ -251,6 +250,24 @@ struct mtp_ext_config_desc_function {
 	__u8	compatibleID[8];
 	__u8	subCompatibleID[8];
 	__u8	reserved[6];
+};
+
+/* MTP Extended Configuration Descriptor */
+struct {
+	struct mtp_ext_config_desc_header	header;
+	struct mtp_ext_config_desc_function    function;
+} mtp_ext_config_desc = {
+	.header = {
+		.dwLength = __constant_cpu_to_le32(sizeof(mtp_ext_config_desc)),
+		.bcdVersion = __constant_cpu_to_le16(0x0100),
+		.wIndex = __constant_cpu_to_le16(4),
+		.bCount = __constant_cpu_to_le16(1),
+	},
+	.function = {
+		.bFirstInterfaceNumber = 0,
+		.bInterfaceCount = 1,
+		.compatibleID = { 'M', 'T', 'P' },
+	},
 };
 
 struct mtp_device_status {
@@ -416,10 +433,17 @@ static int mtp_create_bulk_endpoints(struct mtp_dev *dev,
 		req->complete = mtp_complete_in;
 		mtp_req_put(dev, &dev->tx_idle, req);
 	}
+retry_rx_alloc:
 	for (i = 0; i < RX_REQ_MAX; i++) {
-		req = mtp_request_new(dev->ep_out, MTP_BULK_BUFFER_SIZE);
-		if (!req)
-			goto fail;
+		req = mtp_request_new(dev->ep_out, mtp_rx_req_len);
+		if (!req) {
+			if (mtp_rx_req_len <= MTP_BULK_BUFFER_SIZE)
+				goto fail;
+			for (; i > 0; i--)
+				mtp_request_free(dev->rx_req[i], dev->ep_out);
+			mtp_rx_req_len = MTP_BULK_BUFFER_SIZE;
+			goto retry_rx_alloc;
+		}
 		req->complete = mtp_complete_out;
 		dev->rx_req[i] = req;
 	}
@@ -449,7 +473,7 @@ static ssize_t mtp_read(struct file *fp, char __user *buf,
 
 	DBG(cdev, "mtp_read(%d)\n", count);
 
-	if (count > MTP_BULK_BUFFER_SIZE)
+	if (count > mtp_rx_req_len)
 		return -EINVAL;
 
 	/* we will block until we're online */
@@ -755,8 +779,8 @@ static void receive_file_work(struct work_struct *data)
 			read_req = dev->rx_req[cur_buf];
 			cur_buf = (cur_buf + 1) % RX_REQ_MAX;
 
-			read_req->length = (count > MTP_BULK_BUFFER_SIZE
-					? MTP_BULK_BUFFER_SIZE : count);
+			read_req->length = (count > mtp_rx_req_len
+					? mtp_rx_req_len : count);
 			dev->rx_done = 0;
 			ret = usb_ep_queue(dev->ep_out, read_req, GFP_KERNEL);
 			if (ret < 0) {
@@ -1042,61 +1066,17 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 		memcpy(cdev->req->buf, mtp_os_string, value);
 	} else if ((ctrl->bRequestType & USB_TYPE_MASK) == USB_TYPE_VENDOR) {
 		/* Handle MTP OS descriptor */
-		DBG(cdev, "vendor request:%d index:%d value:%d length:%d\n",
+		DBG(cdev, "vendor request: %d index: %d value: %d length: %d\n",
 			ctrl->bRequest, w_index, w_value, w_length);
-		if (((ctrl->bRequest == MSOS_GOOGLE_VENDOR_CODE) ||
-			(ctrl->bRequest == MSOS_VENDOR_CODE)) &&
-			(ctrl->bRequestType & USB_DIR_IN) && (w_index == 4)) {
 
-			int total = 0;
-			int func_num = 0;
-			int interface_num = 0;
-			struct mtp_ext_config_desc_header *head;
-			struct mtp_ext_config_desc_function *func;
-			struct usb_configuration        *cfg;
-			struct usb_function *f;
-
-			head = (struct mtp_ext_config_desc_header *)
-				cdev->req->buf;
-			func = (struct mtp_ext_config_desc_function *)
-				(head + 1);
-
-			/* zero clear */
-			memset(cdev->req->buf, 0x00, cdev->bufsiz);
-
-			list_for_each_entry(cfg, &cdev->configs, list) {
-
-				list_for_each_entry(f, &cfg->functions, list) {
-					if (!f)
-						break;
-
-					interface_num++;
-					func->bFirstInterfaceNumber = func_num;
-					func->bInterfaceCount = 1;
-					if (!strncmp(f->name, "mtp", 3)) {
-						memcpy(func->compatibleID,
-							"MTP", 3);
-						VDBG(cdev,
-							"MTP interface found."
-							"Interface_num: %d.\n",
-							interface_num);
-					}
-					func++;
-					func_num++;
-				}
-			}
-
-			total = sizeof(*head) + (sizeof(*func) * func_num);
-
-			/* header section */
-			head->dwLength = total;
-			head->bcdVersion = __constant_cpu_to_le16(0x0100);
-			head->wIndex = __constant_cpu_to_le16(4);
-			head->bCount = func_num;
-			value = min(w_length, (u16)total);
+		if (ctrl->bRequest == 1
+				&& (ctrl->bRequestType & USB_DIR_IN)
+				&& (w_index == 4 || w_index == 5)) {
+			value = (w_length < sizeof(mtp_ext_config_desc) ?
+					w_length : sizeof(mtp_ext_config_desc));
+			memcpy(cdev->req->buf, &mtp_ext_config_desc, value);
 		}
-	}
-	if ((ctrl->bRequestType & USB_TYPE_MASK) == USB_TYPE_CLASS) {
+	} else if ((ctrl->bRequestType & USB_TYPE_MASK) == USB_TYPE_CLASS) {
 		DBG(cdev, "class request: %d index: %d value: %d length: %d\n",
 			ctrl->bRequest, w_index, w_value, w_length);
 
@@ -1190,6 +1170,7 @@ mtp_function_bind(struct usb_configuration *c, struct usb_function *f)
 	if (id < 0)
 		return id;
 	mtp_interface_desc.bInterfaceNumber = id;
+	mtp_ext_config_desc.function.bFirstInterfaceNumber = id;
 
 	/* allocate endpoints */
 	ret = mtp_create_bulk_endpoints(dev, &mtp_fullspeed_in_desc,
