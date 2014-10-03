@@ -3990,50 +3990,48 @@ typedef struct cntry_locales_custom {
 
 static cntry_locales_custom_t fuji_wifi_translate_custom_table[] = {
 /* Table should be filled out based on custom platform regulatory requirement */
-	{"",   "XY", 9},  /* universal */
-	{"US", "Q2", 32}, /* input ISO "US" to : Q2 regrev 32 */
-	{"CA", "Q2", 32}, /* input ISO "CA" to : Q2 regrev 32 */
-	{"EU", "EU", 51}, /* European union countries */
-	{"AT", "EU", 51},
-	{"BE", "EU", 51},
-	{"BG", "EU", 51},
-	{"CY", "EU", 51},
-	{"CZ", "EU", 51},
-	{"DK", "EU", 51},
-	{"EE", "EU", 51},
-	{"FI", "EU", 51},
-	{"FR", "EU", 51},
-	{"DE", "EU", 51},
-	{"GR", "EU", 51},
-	{"HU", "EU", 51},
-	{"IE", "EU", 51},
-	{"IT", "EU", 51},
-	{"LV", "EU", 51},
-	{"LI", "EU", 51},
-	{"LT", "EU", 51},
-	{"LU", "EU", 51},
-	{"MT", "EU", 51},
-	{"NL", "EU", 51},
-	{"PL", "EU", 51},
-	{"PT", "EU", 51},
-	{"RO", "EU", 51},
-	{"SK", "EU", 51},
-	{"SI", "EU", 51},
-	{"ES", "EU", 51},
-	{"SE", "EU", 51},
-	{"GB", "EU", 51}, /* input ISO "GB" to : EU regrev 51 */
+	{"",   "XY", 4},  /* Universal if Country code is unknown or empty */
+	{"US", "US", 69}, /* input ISO "US" to : US regrev 69 */
+	{"CA", "US", 69}, /* input ISO "CA" to : US regrev 69 */
+	{"EU", "EU", 5},  /* European union countries to : EU regrev 05 */
+	{"AT", "EU", 5},
+	{"BE", "EU", 5},
+	{"BG", "EU", 5},
+	{"CY", "EU", 5},
+	{"CZ", "EU", 5},
+	{"DK", "EU", 5},
+	{"EE", "EU", 5},
+	{"FI", "EU", 5},
+	{"FR", "EU", 5},
+	{"DE", "EU", 5},
+	{"GR", "EU", 5},
+	{"HU", "EU", 5},
+	{"IE", "EU", 5},
+	{"IT", "EU", 5},
+	{"LV", "EU", 5},
+	{"LI", "EU", 5},
+	{"LT", "EU", 5},
+	{"LU", "EU", 5},
+	{"MT", "EU", 5},
+	{"NL", "EU", 5},
+	{"PL", "EU", 5},
+	{"PT", "EU", 5},
+	{"RO", "EU", 5},
+	{"SK", "EU", 5},
+	{"SI", "EU", 5},
+	{"ES", "EU", 5},
+	{"SE", "EU", 5},
+	{"GB", "EU", 5},
+	{"KR", "XY", 3},
+	{"AU", "XY", 3},
+	{"CN", "XY", 3}, /* input ISO "CN" to : XY regrev 03 */
+	{"TW", "XY", 3},
+	{"AR", "XY", 3},
+	{"MX", "XY", 3},
 	{"IL", "IL", 0},
 	{"CH", "CH", 0},
 	{"TR", "TR", 0},
 	{"NO", "NO", 0},
-	{"KR", "KR", 25},
-	{"AU", "XY", 9},
-	{"CN", "CN", 0},
-	{"TW", "XY", 9},
-	{"AR", "XY", 9},
-	{"MX", "XY", 9},
-	{"JP", "EU", 51},
-	{"BR", "KR", 25}
 };
 
 static void *fuji_wifi_get_country_code(char *ccode)
