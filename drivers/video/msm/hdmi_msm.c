@@ -828,7 +828,14 @@ static void hdmi_msm_send_event(boolean on)
 
 	if (on) {
 		/* Build EDID table */
-		hdmi_msm_read_edid();
+		if (hdmi_msm_read_edid()) {
+			hdmi_msm_state->hpd_delay_count++;
+			if (hdmi_msm_state->hpd_delay_count < HDMI_DELAY_MAX) {
+				mod_timer(&hdmi_msm_state->hpd_delay_timer, jiffies + HZ/10);
+				return;
+			}
+		}
+
 		switch_set_state(&external_common_state->sdev, 1);
 		DEV_INFO("%s: hdmi state switched to %d\n", __func__,
 				external_common_state->sdev.state);
@@ -844,6 +851,8 @@ static void hdmi_msm_send_event(boolean on)
 				KOBJ_CHANGE, envp);
 		}
 	} else {
+		del_timer(&hdmi_msm_state->hpd_delay_timer);
+
 		switch_set_state(&external_common_state->sdev, 0);
 		DEV_INFO("%s: hdmi state switch to %d\n", __func__,
 				external_common_state->sdev.state);
@@ -861,6 +870,11 @@ static void hdmi_msm_hpd_state_work(struct work_struct *work)
 	}
 
 	hdmi_msm_send_event(external_common_state->hpd_state);
+}
+
+static void hdmi_msm_hpd_delay_timer(unsigned long data)
+{
+	queue_work(hdmi_work_queue, &hdmi_msm_state->hpd_state_work);
 }
 
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL_CEC_SUPPORT
@@ -1080,6 +1094,7 @@ static irqreturn_t hdmi_msm_isr(int irq, void *dev_id)
 		DEV_DBG("%s: Queuing work to handle HPD %s event\n", __func__,
 				external_common_state->hpd_state ? "connect" :
 				"disconnect");
+		hdmi_msm_state->hpd_delay_count = 0;
 		queue_work(hdmi_work_queue, &hdmi_msm_state->hpd_state_work);
 		return IRQ_HANDLED;
 	}
@@ -4949,6 +4964,11 @@ static int __init hdmi_msm_init(void)
 	init_completion(&hdmi_msm_state->ddc_sw_done);
 	init_completion(&hdmi_msm_state->hpd_event_processed);
 	INIT_WORK(&hdmi_msm_state->hpd_state_work, hdmi_msm_hpd_state_work);
+
+	init_timer(&hdmi_msm_state->hpd_delay_timer);
+	hdmi_msm_state->hpd_delay_timer.function = hdmi_msm_hpd_delay_timer;
+	hdmi_msm_state->hpd_delay_timer.data = (uint32)NULL;
+	hdmi_msm_state->hpd_delay_timer.expires = 0xffffffffL;
 
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL_CEC_SUPPORT
 	INIT_WORK(&hdmi_msm_state->cec_latch_detect_work,
