@@ -1767,6 +1767,7 @@ void mdp4_mixer_stage_commit(int mixer)
 	if (data)
 		mdp4_mixer_blend_setup(mixer);
 
+	local_irq_save(flags);
 	off = 0;
 	if (data != ctrl->mixer_cfg[mixer]) {
 		ctrl->mixer_cfg[mixer] = data;
@@ -1784,7 +1785,6 @@ void mdp4_mixer_stage_commit(int mixer)
 				mixer, data, ctrl->flush[mixer], current->pid);
 	}
 
-	local_irq_save(flags);
 	if (off)
 		outpdw(MDP_BASE + off, data);
 
