@@ -667,6 +667,7 @@ static int msm_rotator_get_plane_sizes(uint32_t format,	uint32_t w, uint32_t h,
 	case MDP_Y_CRCB_H2V1:
 	case MDP_Y_CBCR_H2V1:
 	case MDP_Y_CRCB_H1V2:
+	case MDP_Y_CBCR_H1V2:
 		p->num_planes = 2;
 		p->plane_size[0] = w * h;
 		p->plane_size[1] = w * h;
@@ -818,9 +819,26 @@ static int msm_rotator_ycxcx_h2v1(struct msm_rotator_img_info *info,
 				  unsigned int in_chroma_paddr,
 				  unsigned int out_chroma_paddr)
 {
+	uint32_t dst_format;
 	int bpp;
 
-	if (info->src.format != info->dst.format)
+	switch (info->src.format) {
+	case MDP_Y_CRCB_H2V1:
+		if (info->rotations & MDP_ROT_90)
+			dst_format = MDP_Y_CRCB_H1V2;
+		else
+			dst_format = MDP_Y_CRCB_H2V1;
+		break;
+	case MDP_Y_CBCR_H2V1:
+		if (info->rotations & MDP_ROT_90)
+			dst_format = MDP_Y_CBCR_H1V2;
+		else
+			dst_format = MDP_Y_CBCR_H2V1;
+		break;
+	default:
+		return -EINVAL;
+	}
+	if (info->dst.format != dst_format)
 		return -EINVAL;
 
 	bpp = get_bpp(info->src.format);
@@ -1508,6 +1526,7 @@ rotate_prepare_error:
 		fput_light(srcp0_file, ps0_need);
 	else
 		put_img(srcp0_file, srcp0_ihdl, ROTATOR_SRC_DOMAIN, 0);
+	msm_rotator_signal_timeline_done(s);
 	dev_dbg(msm_rotator_dev->device, "%s() returning rc = %d\n",
 		__func__, rc);
 	mutex_unlock(&msm_rotator_dev->rotator_lock);
@@ -1977,10 +1996,16 @@ static int msm_rotator_start(unsigned long arg,
 		is_rgb = 1;
 		info.dst.format = info.src.format;
 		break;
+	case MDP_Y_CBCR_H2V1:
+		if (info.rotations & MDP_ROT_90)
+			info.dst.format = MDP_Y_CBCR_H1V2;
+		break;
+	case MDP_Y_CRCB_H2V1:
+		if (info.rotations & MDP_ROT_90)
+			info.dst.format = MDP_Y_CRCB_H1V2;
+		break;
 	case MDP_Y_CBCR_H2V2:
 	case MDP_Y_CRCB_H2V2:
-	case MDP_Y_CBCR_H2V1:
-	case MDP_Y_CRCB_H2V1:
 	case MDP_YCBCR_H1V1:
 	case MDP_YCRCB_H1V1:
 		info.dst.format = info.src.format;
