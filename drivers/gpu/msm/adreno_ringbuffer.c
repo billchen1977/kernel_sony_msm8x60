@@ -236,7 +236,7 @@ int adreno_ringbuffer_load_pm4_ucode(struct kgsl_device *device,
 
 	adreno_writereg(adreno_dev, ADRENO_REG_CP_DEBUG, CP_DEBUG_DEFAULT);
 	adreno_writereg(adreno_dev, ADRENO_REG_CP_ME_RAM_WADDR, addr);
-	for (i = start; i < adreno_dev->pm4_fw_size; i++)
+	for (i = 1; i < adreno_dev->pm4_fw_size; i++)
 		adreno_writereg(adreno_dev, ADRENO_REG_CP_ME_RAM_DATA,
 					adreno_dev->pm4_fw[i]);
 
@@ -297,9 +297,8 @@ int adreno_ringbuffer_load_pfp_ucode(struct kgsl_device *device,
 	KGSL_DRV_INFO(device, "loading pfp ucode version: %d\n",
 			adreno_dev->pfp_fw_version);
 
-	adreno_writereg(adreno_dev, ADRENO_REG_CP_PFP_UCODE_ADDR,
-						addr);
-	for (i = start; i < adreno_dev->pfp_fw_size; i++)
+	adreno_writereg(adreno_dev, ADRENO_REG_CP_PFP_UCODE_ADDR, addr);
+	for (i = 1; i < adreno_dev->pfp_fw_size; i++)
 		adreno_writereg(adreno_dev, ADRENO_REG_CP_PFP_UCODE_DATA,
 						adreno_dev->pfp_fw[i]);
 
@@ -598,8 +597,7 @@ adreno_ringbuffer_addcmds(struct adreno_ringbuffer *rb,
 	total_sizedwords += (flags & KGSL_CMD_FLAGS_INTERNAL_ISSUE) ? 2 : 0;
 
 	/* Add two dwords for the CP_INTERRUPT */
-	if (drawctxt || (flags & KGSL_CMD_FLAGS_INTERNAL_ISSUE))
-		total_sizedwords += 2;
+	total_sizedwords += drawctxt ? 2 : 0;
 
 	/* context rollover */
 	if (adreno_is_a3xx(adreno_dev))
@@ -615,13 +613,13 @@ adreno_ringbuffer_addcmds(struct adreno_ringbuffer *rb,
 	total_sizedwords += 3; /* sop timestamp */
 	total_sizedwords += 4; /* eop timestamp */
 
-	if (adreno_is_a20x(adreno_dev))
-		total_sizedwords += 2; /* CACHE_FLUSH */
-
 	if (drawctxt) {
 		total_sizedwords += 3; /* global timestamp without cache
 					* flush for non-zero context */
 	}
+
+	if (adreno_is_a20x(adreno_dev))
+		total_sizedwords += 2; /* CACHE_FLUSH */
 
 	if (flags & KGSL_CMD_FLAGS_WFI)
 		total_sizedwords += 2; /* WFI */
