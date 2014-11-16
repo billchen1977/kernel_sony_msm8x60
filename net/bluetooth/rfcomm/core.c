@@ -138,6 +138,21 @@ static inline void rfcomm_schedule(void)
 
 static inline void rfcomm_session_put(struct rfcomm_session *s)
 {
+	bool match = false;
+	struct rfcomm_session *sess;
+	struct list_head *p, *n;
+	list_for_each_safe(p, n, &session_list) {
+		sess = list_entry(p, struct rfcomm_session, list);
+		if (s == sess) {
+			match = true;
+			break;
+		}
+	}
+	if (!match) {
+		BT_ERR("session already freed previously");
+		dump_stack();
+		return;
+	}
 	if (atomic_dec_and_test(&s->refcnt))
 		rfcomm_session_del(s);
 }
@@ -247,6 +262,7 @@ static inline int rfcomm_check_security(struct rfcomm_dlc *d)
 	__u8 auth_type;
 
 	switch (d->sec_level) {
+	case BT_SECURITY_VERY_HIGH:
 	case BT_SECURITY_HIGH:
 		auth_type = HCI_AT_GENERAL_BONDING_MITM;
 		break;
@@ -905,7 +921,6 @@ static int rfcomm_send_nsc(struct rfcomm_session *s, int cr, u8 type)
 	u8 buf[16], *ptr = buf;
 
 	BT_DBG("%p cr %d type %d", s, cr, type);
-	cr = cr >> 1;
 
 	hdr = (void *) ptr; ptr += sizeof(*hdr);
 	hdr->addr = __addr(s->initiator, 0);
@@ -913,7 +928,7 @@ static int rfcomm_send_nsc(struct rfcomm_session *s, int cr, u8 type)
 	hdr->len  = __len8(sizeof(*mcc) + 1);
 
 	mcc = (void *) ptr; ptr += sizeof(*mcc);
-	mcc->type = __mcc_type(0, RFCOMM_NSC);
+	mcc->type = __mcc_type(cr, RFCOMM_NSC);
 	mcc->len  = __len8(1);
 
 	/* Type that we didn't like */
@@ -1671,6 +1686,8 @@ static int rfcomm_recv_mcc(struct rfcomm_session *s, struct sk_buff *skb)
 		break;
 
 	case RFCOMM_NSC:
+		break;
+
 	default:
 		BT_ERR("Unknown control type 0x%02x", type);
 		rfcomm_send_nsc(s, cr, type);
@@ -2147,7 +2164,8 @@ static void rfcomm_security_cfm(struct hci_conn *conn, u8 status, u8 encrypt)
 				set_bit(RFCOMM_SEC_PENDING, &d->flags);
 				rfcomm_dlc_set_timer(d, RFCOMM_AUTH_TIMEOUT);
 				continue;
-			} else if (d->sec_level == BT_SECURITY_HIGH) {
+			} else if (d->sec_level == BT_SECURITY_HIGH ||
+				d->sec_level == BT_SECURITY_VERY_HIGH) {
 				__rfcomm_dlc_close(d, ECONNREFUSED);
 				continue;
 			}

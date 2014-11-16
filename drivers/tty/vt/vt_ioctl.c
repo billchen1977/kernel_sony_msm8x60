@@ -110,6 +110,34 @@ void vt_event_post(unsigned int event, unsigned int old, unsigned int new)
 		wake_up_interruptible(&vt_event_waitqueue);
 }
 
+static void __vt_event_queue(struct vt_event_wait *vw)
+{
+	unsigned long flags;
+	/* Prepare the event */
+	INIT_LIST_HEAD(&vw->list);
+	vw->done = 0;
+	/* Queue our event */
+	spin_lock_irqsave(&vt_event_lock, flags);
+	list_add(&vw->list, &vt_events);
+	spin_unlock_irqrestore(&vt_event_lock, flags);
+}
+
+static void __vt_event_wait(struct vt_event_wait *vw)
+{
+	/* Wait for it to pass */
+	wait_event_interruptible(vt_event_waitqueue, vw->done);
+}
+
+static void __vt_event_dequeue(struct vt_event_wait *vw)
+{
+	unsigned long flags;
+
+	/* Dequeue it */
+	spin_lock_irqsave(&vt_event_lock, flags);
+	list_del(&vw->list);
+	spin_unlock_irqrestore(&vt_event_lock, flags);
+}
+
 /**
  *	vt_event_wait		-	wait for an event
  *	@vw: our event
@@ -121,20 +149,9 @@ void vt_event_post(unsigned int event, unsigned int old, unsigned int new)
 
 static void vt_event_wait(struct vt_event_wait *vw)
 {
-	unsigned long flags;
-	/* Prepare the event */
-	INIT_LIST_HEAD(&vw->list);
-	vw->done = 0;
-	/* Queue our event */
-	spin_lock_irqsave(&vt_event_lock, flags);
-	list_add(&vw->list, &vt_events);
-	spin_unlock_irqrestore(&vt_event_lock, flags);
-	/* Wait for it to pass */
-	wait_event_interruptible(vt_event_waitqueue, vw->done);
-	/* Dequeue it */
-	spin_lock_irqsave(&vt_event_lock, flags);
-	list_del(&vw->list);
-	spin_unlock_irqrestore(&vt_event_lock, flags);
+	__vt_event_queue(vw);
+	__vt_event_wait(vw);
+	__vt_event_dequeue(vw);
 }
 
 /**
@@ -176,25 +193,15 @@ static int vt_event_wait_ioctl(struct vt_event __user *event)
 int vt_waitactive(int n)
 {
 	struct vt_event_wait vw;
-	unsigned long flags;
-	INIT_LIST_HEAD(&vw.list);
-
 	do {
 		vw.event.event = VT_EVENT_SWITCH;
-		vw.done = 0;
-		spin_lock_irqsave(&vt_event_lock, flags);
-		list_add(&vw.list, &vt_events);
-		spin_unlock_irqrestore(&vt_event_lock, flags);
-
-		wait_event_interruptible(vt_event_waitqueue,
-				(n == fg_console + 1) || vw.done);
-
-		spin_lock_irqsave(&vt_event_lock, flags);
-		list_del(&vw.list);
-		spin_unlock_irqrestore(&vt_event_lock, flags);
-
-		if (n == fg_console + 1)
+		__vt_event_queue(&vw);
+		if (n == fg_console + 1) {
+			__vt_event_dequeue(&vw);
 			break;
+		}
+		__vt_event_wait(&vw);
+		__vt_event_dequeue(&vw);
 		if (vw.done == 0)
 			return -EINTR;
 	} while (vw.event.newev != n);
