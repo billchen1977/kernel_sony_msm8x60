@@ -1724,7 +1724,6 @@ dhd_tcpack_suppress(dhd_pub_t *dhdp, void *pkt)
 	return FALSE;
 }
 #endif /* DHDTCPACK_SUPPRESS */
-
 /* Writes a HW/SW header into the packet and sends it. */
 /* Assumes: (a) header space already there, (b) caller holds lock */
 static int
@@ -3446,7 +3445,8 @@ dhd_serialconsole(dhd_bus_t *bus, bool set, bool enable, int *bcmerror)
 	}
 	else if (bus->sih->chip == BCM4334_CHIP_ID ||
 		bus->sih->chip == BCM43340_CHIP_ID ||
-		bus->sih->chip == BCM43341_CHIP_ID) {
+		bus->sih->chip == BCM43341_CHIP_ID ||
+		0) {
 		if (enable) {
 			/* Moved to PMU chipcontrol 1 from 4330 */
 			int_val &= ~gpio_sel;
@@ -4068,7 +4068,6 @@ dhdsdio_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, const ch
 		}
 		break;
 #endif /* BCMSDIOH_TXGLOM */
-
 	case IOV_SVAL(IOV_HANGREPORT):
 		bus->dhd->hang_report = bool_val;
 		DHD_ERROR(("%s: Set hang_report as %d\n", __FUNCTION__, bus->dhd->hang_report));
@@ -6052,7 +6051,6 @@ dhdsdio_dpc(dhd_bus_t *bus)
 	uint framecnt = 0;		  /* Temporary counter of tx/rx frames */
 	bool rxdone = TRUE;		  /* Flag for no more read data */
 	bool resched = FALSE;	  /* Flag indicating resched wanted */
-
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	if (bus->dhd->busstate == DHD_BUS_DOWN) {
@@ -8050,7 +8048,9 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 
 #if defined(OOB_INTR_ONLY)
 			/* Clean up any pending IRQ */
+			dhd_enable_oob_intr(bus, FALSE);
 			bcmsdh_set_irq(FALSE);
+			bcmsdh_unregister_oob_intr();
 #endif 
 
 			/* Clean tx/rx buffer pointers, detach from the dongle */
@@ -8111,6 +8111,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 						dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, OFF);
 #endif 
 						dhd_os_wd_timer(dhdp, dhd_watchdog_ms);
+
 						DHD_TRACE(("%s: WLAN ON DONE\n", __FUNCTION__));
 					} else {
 						dhd_bus_stop(bus, FALSE);
@@ -8144,7 +8145,7 @@ uint dhd_bus_chip_id(dhd_pub_t *dhdp)
 {
 	dhd_bus_t *bus = dhdp->bus;
 
-	return bus->sih->chip;
+	return  bus->sih->chip;
 }
 
 /* Get Chip Rev ID version */
@@ -8162,7 +8163,6 @@ uint dhd_bus_chippkg_id(dhd_pub_t *dhdp)
 
 	return bus->sih->chippkg;
 }
-
 int
 dhd_bus_membytes(dhd_pub_t *dhdp, bool set, uint32 address, uint8 *data, uint size)
 {

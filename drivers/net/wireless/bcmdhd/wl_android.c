@@ -86,6 +86,7 @@
 #define CMD_P2P_SET_PS		"P2P_SET_PS"
 #define CMD_SET_AP_WPS_P2P_IE 		"SET_AP_WPS_P2P_IE"
 #define CMD_SETROAMMODE 	"SETROAMMODE"
+#define CMD_SETIBSSBEACONOUIDATA	"SETIBSSBEACONOUIDATA"
 #define CMD_MIRACAST		"MIRACAST"
 
 
@@ -102,6 +103,20 @@
 
 #define CMD_OKC_SET_PMK		"SET_PMK"
 #define CMD_OKC_ENABLE		"OKC_ENABLE"
+
+#define	CMD_HAPD_MAC_FILTER	"HAPD_MAC_FILTER"
+/* hostap mac mode */
+#define MACLIST_MODE_DISABLED   0
+#define MACLIST_MODE_DENY       1
+#define MACLIST_MODE_ALLOW      2
+
+/* max number of assoc list */
+#define MAX_NUM_OF_ASSOCLIST    64
+
+/* max number of mac filter list
+ * restrict max number to 10 as maximum cmd string size is 255
+ */
+#define MAX_NUM_MAC_FILT        10
 
 
 /* miracast related definition */
@@ -401,7 +416,7 @@ exit:
 #ifndef WL_SCHED_SCAN
 static int wl_android_set_pno_setup(struct net_device *dev, char *command, int total_len)
 {
-	wlc_ssid_t ssids_local[MAX_PFN_LIST_COUNT];
+	wlc_ssid_ext_t ssids_local[MAX_PFN_LIST_COUNT];
 	int res = -1;
 	int nssid = 0;
 	cmd_tlv_t *cmd_tlv_temp;
@@ -513,6 +528,131 @@ static int wl_android_get_p2p_dev_addr(struct net_device *ndev, char *command, i
 	return bytes_written;
 }
 
+
+static int
+wl_android_set_ap_mac_list(struct net_device *dev, int macmode, struct maclist *maclist)
+{
+	int i, j, match;
+	int ret	= 0;
+	char mac_buf[MAX_NUM_OF_ASSOCLIST *
+		sizeof(struct ether_addr) + sizeof(uint)] = {0};
+	struct maclist *assoc_maclist = (struct maclist *)mac_buf;
+
+	/* set filtering mode */
+	if ((ret = wldev_ioctl(dev, WLC_SET_MACMODE, &macmode, sizeof(macmode), true)) != 0) {
+		DHD_ERROR(("%s : WLC_SET_MACMODE error=%d\n", __FUNCTION__, ret));
+		return ret;
+	}
+	if (macmode != MACLIST_MODE_DISABLED) {
+		/* set the MAC filter list */
+		if ((ret = wldev_ioctl(dev, WLC_SET_MACLIST, maclist,
+			sizeof(int) + sizeof(struct ether_addr) * maclist->count, true)) != 0) {
+			DHD_ERROR(("%s : WLC_SET_MACLIST error=%d\n", __FUNCTION__, ret));
+			return ret;
+		}
+		/* get the current list of associated STAs */
+		assoc_maclist->count = MAX_NUM_OF_ASSOCLIST;
+		if ((ret = wldev_ioctl(dev, WLC_GET_ASSOCLIST, assoc_maclist,
+			sizeof(mac_buf), false)) != 0) {
+			DHD_ERROR(("%s : WLC_GET_ASSOCLIST error=%d\n", __FUNCTION__, ret));
+			return ret;
+		}
+		/* do we have any STA associated?  */
+		if (assoc_maclist->count) {
+			/* iterate each associated STA */
+			for (i = 0; i < assoc_maclist->count; i++) {
+				match = 0;
+				/* compare with each entry */
+				for (j = 0; j < maclist->count; j++) {
+					DHD_INFO(("%s : associated="MACDBG " list="MACDBG "\n",
+					__FUNCTION__, MAC2STRDBG(assoc_maclist->ea[i].octet),
+					MAC2STRDBG(maclist->ea[j].octet)));
+					if (memcmp(assoc_maclist->ea[i].octet,
+						maclist->ea[j].octet, ETHER_ADDR_LEN) == 0) {
+						match = 1;
+						break;
+					}
+				}
+				/* do conditional deauth */
+				/*   "if not in the allow list" or "if in the deny list" */
+				if ((macmode == MACLIST_MODE_ALLOW && !match) ||
+					(macmode == MACLIST_MODE_DENY && match)) {
+					scb_val_t scbval;
+
+					scbval.val = htod32(1);
+					memcpy(&scbval.ea, &assoc_maclist->ea[i],
+						ETHER_ADDR_LEN);
+					if ((ret = wldev_ioctl(dev,
+						WLC_SCB_DEAUTHENTICATE_FOR_REASON,
+						&scbval, sizeof(scb_val_t), true)) != 0)
+						DHD_ERROR(("%s WLC_SCB_DEAUTHENTICATE error=%d\n",
+							__FUNCTION__, ret));
+				}
+			}
+		}
+	}
+	return ret;
+}
+
+/*
+ * HAPD_MAC_FILTER mac_mode mac_cnt mac_addr1 mac_addr2
+ *
+ */
+static int
+wl_android_set_mac_address_filter(struct net_device *dev, const char* str)
+{
+	int i;
+	int ret = 0;
+	int macnum = 0;
+	int macmode = MACLIST_MODE_DISABLED;
+	struct maclist *list;
+	char eabuf[ETHER_ADDR_STR_LEN];
+
+	/* string should look like below (macmode/macnum/maclist) */
+	/*   1 2 00:11:22:33:44:55 00:11:22:33:44:ff  */
+
+	/* get the MAC filter mode */
+	macmode = bcm_atoi(strsep((char**)&str, " "));
+
+	if (macmode < MACLIST_MODE_DISABLED || macmode > MACLIST_MODE_ALLOW) {
+		DHD_ERROR(("%s : invalid macmode %d\n", __FUNCTION__, macmode));
+		return -1;
+	}
+
+	macnum = bcm_atoi(strsep((char**)&str, " "));
+	if (macnum < 0 || macnum > MAX_NUM_MAC_FILT) {
+		DHD_ERROR(("%s : invalid number of MAC address entries %d\n",
+			__FUNCTION__, macnum));
+		return -1;
+	}
+	/* allocate memory for the MAC list */
+	list = (struct maclist*)kmalloc(sizeof(int) +
+		sizeof(struct ether_addr) * macnum, GFP_KERNEL);
+	if (!list) {
+		DHD_ERROR(("%s : failed to allocate memory\n", __FUNCTION__));
+		return -1;
+	}
+	/* prepare the MAC list */
+	list->count = htod32(macnum);
+	bzero((char *)eabuf, ETHER_ADDR_STR_LEN);
+	for (i = 0; i < list->count; i++) {
+		strncpy(eabuf, strsep((char**)&str, " "), ETHER_ADDR_STR_LEN - 1);
+		if (!(ret = bcm_ether_atoe(eabuf, &list->ea[i]))) {
+			DHD_ERROR(("%s : mac parsing err index=%d, addr=%s\n",
+				__FUNCTION__, i, eabuf));
+			list->count--;
+			break;
+		}
+		DHD_INFO(("%s : %d/%d MACADDR=%s", __FUNCTION__, i, list->count, eabuf));
+	}
+	/* set the list */
+	if ((ret = wl_android_set_ap_mac_list(dev, macmode, list)) != 0)
+		DHD_ERROR(("%s : Setting MAC list failed error=%d\n", __FUNCTION__, ret));
+
+	kfree(list);
+
+	return 0;
+}
 
 /**
  * Global function definitions (declared in wl_android.h)
@@ -664,6 +804,98 @@ int wl_android_set_roam_mode(struct net_device *dev, char *command, int total_le
 		DHD_ERROR(("%s: succeeded to set roaming Mode %d, error = %d\n",
 		__FUNCTION__, mode, error));
 	return 0;
+}
+
+int wl_android_set_ibss_beacon_ouidata(struct net_device *dev, char *command, int total_len)
+{
+	char ie_buf[VNDR_IE_MAX_LEN];
+	char *ioctl_buf = NULL;
+	char hex[] = "XX";
+	char *pcmd = NULL;
+	int ielen = 0, datalen = 0, idx = 0, tot_len = 0;
+	vndr_ie_setbuf_t *vndr_ie = NULL;
+	s32 iecount;
+	uint32 pktflag;
+	u16 kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
+	s32 err = BCME_OK;
+
+	/* Check the VSIE (Vendor Specific IE) which was added.
+	 *  If exist then send IOVAR to delete it
+	 */
+	if (wl_cfg80211_ibss_vsie_delete(dev) != BCME_OK) {
+		return -EINVAL;
+	}
+
+	pcmd = command + strlen(CMD_SETIBSSBEACONOUIDATA) + 1;
+	for (idx = 0; idx < DOT11_OUI_LEN; idx++) {
+		hex[0] = *pcmd++;
+		hex[1] = *pcmd++;
+		ie_buf[idx] =  (uint8)simple_strtoul(hex, NULL, 16);
+	}
+	pcmd++;
+	while ((*pcmd != '\0') && (idx < VNDR_IE_MAX_LEN)) {
+		hex[0] = *pcmd++;
+		hex[1] = *pcmd++;
+		ie_buf[idx++] =  (uint8)simple_strtoul(hex, NULL, 16);
+		datalen++;
+	}
+	tot_len = sizeof(vndr_ie_setbuf_t) + (datalen - 1);
+	vndr_ie = (vndr_ie_setbuf_t *) kzalloc(tot_len, kflags);
+	if (!vndr_ie) {
+		WL_ERR(("IE memory alloc failed\n"));
+		return -ENOMEM;
+	}
+	/* Copy the vndr_ie SET command ("add"/"del") to the buffer */
+	strncpy(vndr_ie->cmd, "add", VNDR_IE_CMD_LEN - 1);
+	vndr_ie->cmd[VNDR_IE_CMD_LEN - 1] = '\0';
+
+	/* Set the IE count - the buffer contains only 1 IE */
+	iecount = htod32(1);
+	memcpy((void *)&vndr_ie->vndr_ie_buffer.iecount, &iecount, sizeof(s32));
+
+	/* Set packet flag to indicate that BEACON's will contain this IE */
+	pktflag = htod32(VNDR_IE_BEACON_FLAG | VNDR_IE_PRBRSP_FLAG);
+	memcpy((void *)&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].pktflag, &pktflag,
+		sizeof(u32));
+	/* Set the IE ID */
+	vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.id = (uchar) DOT11_MNG_PROPR_ID;
+
+	memcpy(&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.oui, &ie_buf,
+		DOT11_OUI_LEN);
+	memcpy(&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.data,
+		&ie_buf[DOT11_OUI_LEN], datalen);
+
+	ielen = DOT11_OUI_LEN + datalen;
+	vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.len = (uchar) ielen;
+
+	ioctl_buf = kmalloc(WLC_IOCTL_MEDLEN, GFP_KERNEL);
+	if (!ioctl_buf) {
+		WL_ERR(("ioctl memory alloc failed\n"));
+		if (vndr_ie) {
+			kfree(vndr_ie);
+		}
+		return -ENOMEM;
+	}
+	memset(ioctl_buf, 0, WLC_IOCTL_MEDLEN);	/* init the buffer */
+	err = wldev_iovar_setbuf(dev, "ie", vndr_ie, tot_len, ioctl_buf, WLC_IOCTL_MEDLEN, NULL);
+
+
+	if (err != BCME_OK) {
+		err = -EINVAL;
+		if (vndr_ie) {
+			kfree(vndr_ie);
+		}
+	}
+	else {
+		/* do NOT free 'vndr_ie' for the next process */
+		wl_cfg80211_ibss_vsie_set_buffer(vndr_ie, tot_len);
+	}
+
+	if (ioctl_buf) {
+		kfree(ioctl_buf);
+	}
+
+	return err;
 }
 
 static int
@@ -824,14 +1056,14 @@ wl_android_set_miracast(struct net_device *dev, char *command, int total_len)
 	return 0;
 
 resume:
-	DHD_ERROR(("%s: turnoff miracast mode because of err %d\n", __FUNCTION__, ret));
+	DHD_ERROR(("%s: turnoff miracast mode because of err%d\n", __FUNCTION__, ret));
 	wl_android_iolist_resume(dev, &miracast_resume_list);
 	return ret;
 }
 
 int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 {
-#define PRIVATE_COMMAND_MAX_LEN 8192
+#define PRIVATE_COMMAND_MAX_LEN	8192
 	int ret = 0;
 	char *command = NULL;
 	int bytes_written = 0;
@@ -961,9 +1193,11 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	else if (strnicmp(command, CMD_PNOSSIDCLR_SET, strlen(CMD_PNOSSIDCLR_SET)) == 0) {
 		bytes_written = dhd_dev_pno_stop_for_ssid(net);
 	}
+#ifndef WL_SCHED_SCAN
 	else if (strnicmp(command, CMD_PNOSETUP_SET, strlen(CMD_PNOSETUP_SET)) == 0) {
 		bytes_written = wl_android_set_pno_setup(net, command, priv_cmd.total_len);
 	}
+#endif /* !WL_SCHED_SCAN */
 	else if (strnicmp(command, CMD_PNOENABLE_SET, strlen(CMD_PNOENABLE_SET)) == 0) {
 		int enable = *(command + strlen(CMD_PNOENABLE_SET) + 1) - '0';
 		bytes_written = (enable)? 0 : dhd_dev_pno_stop_for_ssid(net);
@@ -1003,10 +1237,18 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		bytes_written = wl_android_set_pmk(net, command, priv_cmd.total_len);
 	else if (strnicmp(command, CMD_OKC_ENABLE, strlen(CMD_OKC_ENABLE)) == 0)
 		bytes_written = wl_android_okc_enable(net, command, priv_cmd.total_len);
+	else if (strnicmp(command, CMD_HAPD_MAC_FILTER, strlen(CMD_HAPD_MAC_FILTER)) == 0) {
+		int skip = strlen(CMD_HAPD_MAC_FILTER) + 1;
+		wl_android_set_mac_address_filter(net, (const char*)command+skip);
+	}
 	else if (strnicmp(command, CMD_SETROAMMODE, strlen(CMD_SETROAMMODE)) == 0)
 		bytes_written = wl_android_set_roam_mode(net, command, priv_cmd.total_len);
 	else if (strnicmp(command, CMD_MIRACAST, strlen(CMD_MIRACAST)) == 0)
 		bytes_written = wl_android_set_miracast(net, command, priv_cmd.total_len);
+	else if (strnicmp(command, CMD_SETIBSSBEACONOUIDATA,
+		strlen(CMD_SETIBSSBEACONOUIDATA)) == 0)
+		bytes_written = wl_android_set_ibss_beacon_ouidata(net, command,
+			priv_cmd.total_len);
 	else {
 		DHD_ERROR(("Unknown PRIVATE command %s - ignored\n", command));
 		snprintf(command, 3, "OK");
@@ -1264,7 +1506,7 @@ static int wifi_probe(struct platform_device *pdev)
 	if (wifi_irqres == NULL)
 		wifi_irqres = get_wifi_irqres_from_of(pdev);
 	wifi_control_data = wifi_ctrl;
-	err = wifi_set_power(1, 0);	/* Power On */
+	err = wifi_set_power(1, 200);	/* Power On */
 	if (unlikely(err)) {
 		DHD_ERROR(("%s: set_power failed. err=%d\n", __FUNCTION__, err));
 		wifi_set_power(0, WIFI_TURNOFF_DELAY);
