@@ -1428,6 +1428,7 @@ static const struct adreno_context_ops a225_legacy_ctx_ops = {
 static const struct adreno_context_ops a2xx_legacy_ctx_ops = {
 	.save = a2xx_drawctxt_save,
 	.restore = a2xx_drawctxt_restore,
+	.draw_workaround = a2xx_drawctxt_draw_workaround,
 	.detach = a2xx_drawctxt_detach,
 };
 
